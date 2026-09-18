@@ -68,7 +68,7 @@ func listOrders(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-func updateOrderStatus(db *gorm.DB) gin.HandlerFunc {
+func updateOrderStatus(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if db == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
@@ -86,7 +86,19 @@ func updateOrderStatus(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "无效的状态"})
 			return
 		}
+		var order model.Order
+		if db.Where("id = ? AND user_id = ?", id, currentUser(c)).First(&order).Error != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "订单不存在"})
+			return
+		}
 		db.Model(&model.Order{}).Where("id = ? AND user_id = ?", id, currentUser(c)).Update("status", req.Status)
+
+		text := statusText[req.Status]
+		if text == "" {
+			text = req.Status
+		}
+		notify(db, hub, currentUser(c), model.NotificationTypeOrder, "订单状态更新",
+			"您的订单 "+order.OrderNo+" 已更新为 "+text, order.OrderNo)
 		c.JSON(http.StatusOK, gin.H{"message": "已更新"})
 	}
 }

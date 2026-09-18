@@ -57,7 +57,7 @@ func Start() {
 	protected.GET("/orders", listOrders(db))
 	protected.POST("/orders", createOrder(db))
 	protected.GET("/orders/:id", getOrder(db))
-	protected.PUT("/orders/:id/status", updateOrderStatus(db))
+	protected.PUT("/orders/:id/status", updateOrderStatus(db, hub))
 	protected.GET("/coupons", listCoupons())
 	protected.GET("/notifications", listNotifications(db))
 	protected.GET("/notifications/unread", unreadCount(db))
