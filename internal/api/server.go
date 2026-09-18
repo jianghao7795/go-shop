@@ -65,6 +65,7 @@ func Start() {
 	protected.PUT("/notifications/:id/read", markNotificationRead(db))
 
 	router.GET("/api/health", healthHandler(databaseReady))
+	router.GET("/api/categories", listCategories())
 	router.GET("/api/products/:id", productDetailHandler(db, databaseReady))
 	router.GET("/api/products", productsHandler(db, databaseReady))
 
