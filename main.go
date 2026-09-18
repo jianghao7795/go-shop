@@ -24,8 +24,8 @@ func main() {
 	go api.Start()
 
 	app := application.New(application.Options{
-		Name:        "demo",
-		Description: "A demo of using raw HTML & CSS",
+		Name:        "shop",
+		Description: "A shop application",
 		Services: []application.Service{
 			application.NewService(&service.GreetService{}),
 			application.NewService(service.NewQRService()),
