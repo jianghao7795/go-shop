@@ -1,0 +1,99 @@
+<script setup lang="ts">
+import { onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import { showConfirmDialog, showToast } from "vant";
+import { useUserStore } from "../stores/user";
+
+interface Address { id: number; name: string; phone: string; region: string; detail: string; tag: string; isDefault: boolean; }
+
+const router = useRouter();
+const userStore = useUserStore();
+const addresses = ref<Address[]>([]);
+const loading = ref(false);
+
+const tagColor: Record<string, string> = { 家: "#ee0a24", 公司: "#1989fa", 学校: "#07c160" };
+const tagBg: Record<string, string> = { 家: "#fff1f2", 公司: "#e8f3ff", 学校: "#e8fff0" };
+
+async function load() {
+  loading.value = true;
+  try {
+    const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
+    const response = await fetch(apiBase + "/api/addresses", {
+      headers: { Authorization: "Bearer " + userStore.token },
+    });
+    addresses.value = response.ok ? await response.json() : [];
+  } catch {
+    addresses.value = [];
+  } finally {
+    loading.value = false;
+  }
+}
+
+function edit(addr: Address) {
+  router.push({ name: "address-edit", query: { id: addr.id } });
+}
+
+function maskPhone(phone: string) {
+  return phone.replace(/^(\d{3})\d{4}(\d{4})$/, "$1****$2");
+}
+
+async function setDefault(addr: Address) {
+  const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
+  const response = await fetch(apiBase + "/api/addresses/" + addr.id + "/default", {
+    method: "PUT",
+    headers: { Authorization: "Bearer " + userStore.token },
+  });
+  if (response.ok) {
+    showToast("已设为默认");
+    addresses.value = addresses.value.map(a => ({ ...a, isDefault: a.id === addr.id }));
+  }
+}
+
+async function remove(addr: Address) {
+  try {
+    await showConfirmDialog({ title: "删除地址", message: "确定删除该收货地址吗？" });
+  } catch {
+    return;
+  }
+  const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
+  const response = await fetch(apiBase + "/api/addresses/" + addr.id, {
+    method: "DELETE",
+    headers: { Authorization: "Bearer " + userStore.token },
+  });
+  if (response.ok) { showToast("已删除"); load(); }
+}
+
+onMounted(load);
+</script>
+
+<template>
+  <div class="sub-page">
+    <van-nav-bar title="收货地址" left-arrow @click-left="$router.back()" />
+    <div v-if="loading" class="loading"><van-loading color="#ff4d67" /></div>
+    <van-empty v-else-if="!addresses.length" description="还没有收货地址" />
+    <div v-else class="address-cards">
+      <van-swipe-cell v-for="addr in addresses" :key="addr.id">
+        <div class="address-card" @click="edit(addr)">
+          <div class="address-card-top">
+            <span v-if="addr.tag" class="address-tag" :style="{ color: tagColor[addr.tag], background: tagBg[addr.tag] }">{{ addr.tag }}</span>
+            <strong>{{ addr.name }}</strong>
+            <span class="address-phone">{{ maskPhone(addr.phone) }}</span>
+            <span v-if="addr.isDefault" class="address-default-tag">默认</span>
+          </div>
+          <div class="address-card-detail">{{ addr.region }} {{ addr.detail }}</div>
+          <div class="address-card-ops" @click.stop>
+            <span v-if="!addr.isDefault" class="op" @click="setDefault(addr)">设为默认</span>
+            <span class="op" @click="edit(addr)">编辑</span>
+            <span class="op op-danger" @click="remove(addr)">删除</span>
+          </div>
+        </div>
+        <template #right>
+          <van-button square type="danger" text="删除" class="swipe-delete" @click="remove(addr)" />
+        </template>
+      </van-swipe-cell>
+    </div>
+    <div class="address-add">
+      <van-button block round type="danger" @click="router.push('/address/edit')">新增收货地址</van-button>
+    </div>
+  </div>
+</template>

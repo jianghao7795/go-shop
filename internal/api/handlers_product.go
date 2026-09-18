@@ -1,0 +1,64 @@
+package api
+
+import (
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+
+	"shop/internal/model"
+)
+
+func healthHandler(databaseReady bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "database": databaseReady})
+	}
+}
+
+func productDetailHandler(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !databaseReady {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "database unavailable"})
+			return
+		}
+		id, parseErr := strconv.Atoi(c.Param("id"))
+		if parseErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid product id"})
+			return
+		}
+		var item model.Product
+		if queryErr := db.First(&item, id).Error; queryErr != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "product not found"})
+			return
+		}
+		c.JSON(http.StatusOK, item)
+	}
+}
+
+func productsHandler(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !databaseReady {
+			c.JSON(http.StatusOK, model.FallbackProducts)
+			return
+		}
+		search := c.Query("search")
+		category := c.Query("category")
+		hasFilter := search != "" || (category != "" && category != "all")
+		query := db.Model(&model.Product{})
+		if search != "" {
+			query = query.Where("name LIKE ?", "%"+search+"%")
+		}
+		if category != "" && category != "all" {
+			query = query.Where("category = ?", category)
+		}
+		var items []model.Product
+		if err := query.Order("id DESC").Find(&items).Error; err != nil {
+			items = nil
+		}
+		if len(items) == 0 && !hasFilter {
+			items = model.FallbackProducts
+		}
+		c.JSON(http.StatusOK, items)
+	}
+}
