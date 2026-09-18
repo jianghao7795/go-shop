@@ -18,7 +18,7 @@ func Start() {
 	databaseReady := err == nil
 	if err != nil {
 		log.Printf("mysql unavailable, serving catalog fallback: %v", err)
-	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}); migrateErr != nil {
+	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}); migrateErr != nil {
 		log.Printf("mysql migration failed: %v", migrateErr)
 		databaseReady = false
 	} else {
@@ -41,6 +41,8 @@ func Start() {
 	if err != nil {
 		log.Fatalf("auth init failed: %v", err)
 	}
+	hub := newNotificationHub()
+	router.GET("/api/notifications/stream", tokenFromQuery(), jwtMiddleware.MiddlewareFunc(), streamNotifications(hub))
 	router.POST("/api/login", jwtMiddleware.LoginHandler)
 	router.POST("/api/register", registerHandler(db))
 
@@ -57,6 +59,10 @@ func Start() {
 	protected.GET("/orders/:id", getOrder(db))
 	protected.PUT("/orders/:id/status", updateOrderStatus(db))
 	protected.GET("/coupons", listCoupons())
+	protected.GET("/notifications", listNotifications(db))
+	protected.GET("/notifications/unread", unreadCount(db))
+	protected.PUT("/notifications/read-all", markAllNotificationsRead(db))
+	protected.PUT("/notifications/:id/read", markNotificationRead(db))
 
 	router.GET("/api/health", healthHandler(databaseReady))
 	router.GET("/api/products/:id", productDetailHandler(db, databaseReady))
