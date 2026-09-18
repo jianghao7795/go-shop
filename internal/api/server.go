@@ -68,6 +68,8 @@ func Start() {
 	router.GET("/api/products/:id", productDetailHandler(db, databaseReady))
 	router.GET("/api/products", productsHandler(db, databaseReady))
 
+	go startSimulators(db, hub)
+
 	port := os.Getenv("API_PORT")
 	if port == "" {
 		port = "8080"
