@@ -145,4 +145,10 @@ button, input { font: inherit; }
 .tag-option.active { color: #ee0a24; border-color: #ee0a24; background: #fff1f2; }
 .recognize-group { margin-top: 12px; }
 .recognize-btn { padding: 8px 16px 12px; text-align: right; }
+.notify-toolbar { display: flex; justify-content: flex-end; padding: 10px 16px 0; }
+.notify-emoji { margin-right: 10px; font-size: 20px; }
+.notify-title { font-weight: 400; }
+.notify-cell.is-unread .notify-title { font-weight: 600; }
+.notify-dot { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: #ee0a24; vertical-align: middle; }
+.notify-time { color: #969ba5; font-size: 12px; }
 

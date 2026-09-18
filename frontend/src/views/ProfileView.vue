@@ -2,9 +2,11 @@
 import { useRouter } from "vue-router";
 import { showToast } from "vant";
 import { useUserStore } from "../stores/user";
+import { useNotificationStore } from "../stores/notification";
 
 const router = useRouter();
 const userStore = useUserStore();
+const notificationStore = useNotificationStore();
 
 function goLogin() {
   router.push({ name: "login", query: { redirect: "/profile" } });
@@ -44,6 +46,11 @@ function goOrders(status = "") {
     <van-cell-group inset class="profile-tools">
       <van-cell title="优惠券" icon="coupon-o" is-link @click="router.push('/coupons')" />
       <van-cell title="收货地址" icon="location-o" is-link @click="router.push('/address')" />
+      <van-cell title="消息通知" icon="bell" is-link @click="router.push('/notifications')">
+        <template #value>
+          <van-badge v-if="notificationStore.unread > 0" :content="notificationStore.unread" />
+        </template>
+      </van-cell>
       <van-cell title="客服与帮助" icon="service-o" is-link @click="router.push('/service')" />
     </van-cell-group>
   </div>

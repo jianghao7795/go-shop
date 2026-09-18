@@ -12,6 +12,7 @@ import AddressEditView from "../views/AddressEditView.vue";
 import CheckoutView from "../views/CheckoutView.vue";
 import CouponView from "../views/CouponView.vue";
 import ServiceView from "../views/ServiceView.vue";
+import NotificationsView from "../views/NotificationsView.vue";
 import OrderDetailView from "../views/OrderDetailView.vue";
 import { useUserStore } from "../stores/user";
 
@@ -33,6 +34,7 @@ const router = createRouter({
     { path: "/checkout", name: "checkout", component: CheckoutView, meta: { title: "确认订单", hideTabbar: true, requiresAuth: true } },
     { path: "/coupons", name: "coupons", component: CouponView, meta: { title: "优惠券", hideTabbar: true, requiresAuth: true } },
     { path: "/service", name: "service", component: ServiceView, meta: { title: "客服与帮助", hideTabbar: true, requiresAuth: true } },
+    { path: "/notifications", name: "notifications", component: NotificationsView, meta: { title: "消息通知", hideTabbar: true, requiresAuth: true } },
     { path: "/:pathMatch(.*)*", redirect: { name: "home" } },
   ],
 });
