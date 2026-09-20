@@ -51,4 +51,18 @@ export default defineConfig({
     strictPort: true,
   },
   plugins: [vue(), wails("./bindings")],
+  build: {
+    rollupOptions: {
+      output: {
+        // 把 node_modules 里的依赖按库拆成独立 chunk，避免打进单个 index.js
+        manualChunks(id: string) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("vant")) return "vant";
+          if (id.includes("vue") || id.includes("pinia") || id.includes("vue-router")) return "vue-vendor";
+          if (id.includes("axios")) return "axios";
+          return "vendor";
+        },
+      },
+    },
+  },
 });
