@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 // 订单状态。
 const (
@@ -23,17 +27,19 @@ type OrderItem struct {
 
 // Order 是用户的订单。
 type Order struct {
-	ID        uint        `json:"id" gorm:"primaryKey"`
-	OrderNo   string      `json:"orderNo"`
-	UserID    string      `json:"userId" gorm:"index;size:64"`
-	Status    string      `json:"status" gorm:"size:20"`
-	Amount    float64     `json:"amount"`
-	Receiver  string      `json:"receiver" gorm:"size:64"`
-	Phone     string      `json:"phone" gorm:"size:20"`
-	Region    string      `json:"region" gorm:"size:128"`
-	Detail    string      `json:"detail" gorm:"size:255"`
-	Items     []OrderItem `json:"items" gorm:"type:text;serializer:json"`
-	CreatedAt time.Time   `json:"createdAt"`
+	ID        uint           `json:"id" gorm:"primaryKey"`
+	OrderNo   string         `json:"orderNo"`
+	UserID    string         `json:"userId" gorm:"index;size:64"`
+	Status    string         `json:"status" gorm:"size:20"`
+	Amount    float64        `json:"amount"`
+	Receiver  string         `json:"receiver" gorm:"size:64"`
+	Phone     string         `json:"phone" gorm:"size:20"`
+	Region    string         `json:"region" gorm:"size:128"`
+	Detail    string         `json:"detail" gorm:"size:255"`
+	Items     []OrderItem    `json:"items" gorm:"type:text;serializer:json"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+	DeletedAt gorm.DeletedAt `json:"-"`
 }
 
 // TableName 使用独立的 shop_orders 表。

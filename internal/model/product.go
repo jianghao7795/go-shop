@@ -1,16 +1,25 @@
 package model
 
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
+
 // Product 是商品目录的持久化模型。
 type Product struct {
-	ID            int     `json:"id" gorm:"primaryKey"`
-	Name          string  `json:"name"`
-	Description   string  `json:"description"`
-	Price         float64 `json:"price"`
-	OriginalPrice float64 `json:"originalPrice"`
-	Sales         int     `json:"sales"`
-	Emoji         string  `json:"emoji"`
-	Color         string  `json:"color"`
-	Category      string  `json:"category"`
+	ID            int            `json:"id" gorm:"primaryKey"`
+	Name          string         `json:"name"`
+	Description   string         `json:"description"`
+	Price         float64        `json:"price"`
+	OriginalPrice float64        `json:"originalPrice"`
+	Sales         int            `json:"sales"`
+	Emoji         string         `json:"emoji"`
+	Color         string         `json:"color"`
+	Category      string         `json:"category"`
+	CreatedAt     time.Time      `json:"createdAt"`
+	UpdatedAt     time.Time      `json:"updatedAt"`
+	DeletedAt     gorm.DeletedAt `json:"-"`
 }
 
 // FallbackProducts 是数据库不可用或为空时兜底的商品目录。

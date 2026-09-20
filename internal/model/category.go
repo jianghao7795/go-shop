@@ -1,12 +1,21 @@
 package model
 
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
+
 // Category 是商品分类（持久化到数据库 shop_categories）。
 type Category struct {
-	ID   uint   `json:"id" gorm:"primaryKey"`
-	Key  string `json:"key" gorm:"size:32;uniqueIndex"`
-	Name string `json:"name" gorm:"size:64"`
-	Icon string `json:"icon" gorm:"size:8"`
-	Note string `json:"note" gorm:"size:128"`
+	ID        uint           `json:"id" gorm:"primaryKey"`
+	Key       string         `json:"key" gorm:"size:32;uniqueIndex"`
+	Name      string         `json:"name" gorm:"size:64"`
+	Icon      string         `json:"icon" gorm:"size:8"`
+	Note      string         `json:"note" gorm:"size:128"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+	DeletedAt gorm.DeletedAt `json:"-"`
 }
 
 // TableName 使用独立的 shop_categories 表。
