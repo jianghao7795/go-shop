@@ -25,8 +25,8 @@ func startSimulators(db *gorm.DB, hub *notificationHub) {
 			case <-shipTicker.C:
 				shipNextOrder(db, hub)
 			case <-couponTimer.C:
-				if len(coupons) > 0 {
-					pushCouponToOnline(db, hub, coupons[0])
+				if len(model.Coupons) > 0 {
+					pushCouponToOnline(db, hub, model.Coupons[0])
 				}
 			}
 		}
@@ -44,7 +44,7 @@ func shipNextOrder(db *gorm.DB, hub *notificationHub) {
 	log.Printf("simulated merchant shipped order %s", order.OrderNo)
 }
 
-func pushCouponToOnline(db *gorm.DB, hub *notificationHub, cp coupon) {
+func pushCouponToOnline(db *gorm.DB, hub *notificationHub, cp model.Coupon) {
 	for _, userID := range hub.onlineUsers() {
 		notify(db, hub, userID, model.NotificationTypeCoupon, cp.Title+"已到账",
 			cp.Title+"（"+cp.Condition+"）已发放到您的账户", "")

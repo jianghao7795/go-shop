@@ -18,7 +18,7 @@ func Start() {
 	databaseReady := err == nil
 	if err != nil {
 		log.Printf("mysql unavailable, serving catalog fallback: %v", err)
-	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}); migrateErr != nil {
+	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}, &model.Coupon{}); migrateErr != nil {
 		log.Printf("mysql migration failed: %v", migrateErr)
 		databaseReady = false
 	} else {
@@ -38,6 +38,15 @@ func Start() {
 				log.Printf("category seed failed: %v", seedErr)
 			} else {
 				log.Printf("seeded %d categories", len(model.Categories))
+			}
+		}
+		var couponCount int64
+		db.Model(&model.Coupon{}).Count(&couponCount)
+		if couponCount == 0 {
+			if seedErr := db.Create(&model.Coupons).Error; seedErr != nil {
+				log.Printf("coupon seed failed: %v", seedErr)
+			} else {
+				log.Printf("seeded %d coupons", len(model.Coupons))
 			}
 		}
 	}
@@ -67,7 +76,7 @@ func Start() {
 	protected.POST("/orders", createOrder(db))
 	protected.GET("/orders/:id", getOrder(db))
 	protected.PUT("/orders/:id/status", updateOrderStatus(db, hub))
-	protected.GET("/coupons", listCoupons())
+	protected.GET("/coupons", listCoupons(db, databaseReady))
 	protected.GET("/notifications", listNotifications(db))
 	protected.GET("/notifications/unread", unreadCount(db))
 	protected.PUT("/notifications/read-all", markAllNotificationsRead(db))

@@ -4,26 +4,23 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+
+	"shop/internal/model"
 )
 
-// coupon 是优惠券（当前为静态演示数据）。
-type coupon struct {
-	ID        int    `json:"id"`
-	Title     string `json:"title"`
-	Amount    int    `json:"amount"`
-	Condition string `json:"condition"`
-}
-
-// coupons 是内置优惠券列表，供列表接口与营销模拟器共用。
-var coupons = []coupon{
-	{ID: 1, Title: "新人专享券", Amount: 10, Condition: "满 99 元可用"},
-	{ID: 2, Title: "全场通用券", Amount: 20, Condition: "满 199 元可用"},
-	{ID: 3, Title: "数码品类券", Amount: 50, Condition: "满 499 元可用"},
-	{ID: 4, Title: "满减优惠券", Amount: 100, Condition: "满 999 元可用"},
-}
-
-func listCoupons() gin.HandlerFunc {
+// listCoupons 返回优惠券列表：数据库可用时读 shop_coupons，否则回退到内置种子数据。
+func listCoupons(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.JSON(http.StatusOK, coupons)
+		if !databaseReady || db == nil {
+			c.JSON(http.StatusOK, model.Coupons)
+			return
+		}
+		var list []model.Coupon
+		if err := db.Order("id ASC").Find(&list).Error; err != nil || len(list) == 0 {
+			c.JSON(http.StatusOK, model.Coupons)
+			return
+		}
+		c.JSON(http.StatusOK, list)
 	}
 }
