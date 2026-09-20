@@ -11,6 +11,21 @@ import (
 	"shop/internal/model"
 )
 
+// applyCouponDiscount 根据优惠券计算优惠后金额与优惠额；不满足门槛或券为空时优惠额为 0。
+func applyCouponDiscount(amount float64, coupon *model.Coupon) (payAmount, discount float64) {
+	if coupon == nil {
+		return amount, 0
+	}
+	if amount < float64(coupon.MinAmount) {
+		return amount, 0
+	}
+	discount = float64(coupon.Amount)
+	if discount > amount {
+		discount = amount
+	}
+	return amount - discount, discount
+}
+
 func createOrder(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if db == nil {
@@ -19,6 +34,7 @@ func createOrder(db *gorm.DB) gin.HandlerFunc {
 		}
 		var req struct {
 			AddressID uint              `json:"addressId"`
+			CouponID  uint              `json:"couponId"`
 			Items     []model.OrderItem `json:"items" binding:"required"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil || len(req.Items) == 0 {
@@ -28,6 +44,14 @@ func createOrder(db *gorm.DB) gin.HandlerFunc {
 		var amount float64
 		for _, item := range req.Items {
 			amount += item.Price * float64(item.Quantity)
+		}
+		var coupon model.Coupon
+		if req.CouponID > 0 {
+			if db.Where("id = ?", req.CouponID).First(&coupon).Error != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "优惠券不存在"})
+				return
+			}
+			amount, _ = applyCouponDiscount(amount, &coupon)
 		}
 		var addr model.Address
 		if req.AddressID > 0 {

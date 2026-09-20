@@ -7,6 +7,7 @@ import { useShopCart, type ShopProduct } from "../stores/shop";
 import http from "../lib/http";
 
 interface Address { id: number; name: string; phone: string; region: string; detail: string; isDefault: boolean; }
+interface Coupon { id: number; title: string; amount: number; minAmount: number; condition: string; }
 
 const router = useRouter();
 const shopCart = useShopCart();
@@ -15,6 +16,9 @@ const { clear, increase, decrease, remove } = shopCart;
 
 const addresses = ref<Address[]>([]);
 const selectedAddressId = ref<number | null>(null);
+const coupons = ref<Coupon[]>([]);
+const selectedCouponId = ref<number | null>(null);
+const showCouponPopup = ref(false);
 
 async function onMinus(item: { product: ShopProduct; quantity: number }) {
   if (item.quantity <= 1) {
@@ -34,12 +38,34 @@ const selectedAddress = computed(() => {
   return addresses.value.find(a => a.isDefault) || addresses.value[0] || null;
 });
 
+const selectedCoupon = computed(() => coupons.value.find(c => c.id === selectedCouponId.value) || null);
+
+const discount = computed(() => {
+  if (!selectedCoupon.value) return 0;
+  if (total.value < selectedCoupon.value.minAmount) return 0;
+  return Math.min(selectedCoupon.value.amount, total.value);
+});
+
+const payAmount = computed(() => Math.max(0, total.value - discount.value));
+
 async function loadAddresses() {
   try {
     const res = await http.get("/api/addresses");
     addresses.value = res.data;
     selectedAddressId.value = Number(localStorage.getItem("shop_checkout_address_id")) || null;
   } catch { /* 忽略 */ }
+}
+
+async function loadCoupons() {
+  try {
+    const res = await http.get("/api/coupons");
+    coupons.value = res.data;
+  } catch { /* 忽略 */ }
+}
+
+function selectCoupon(id: number | null) {
+  selectedCouponId.value = id;
+  showCouponPopup.value = false;
 }
 
 async function submitOrder() {
@@ -56,7 +82,7 @@ async function submitOrder() {
       emoji: it.product.emoji,
       color: it.product.color,
     }));
-    await http.post("/api/orders", { addressId: addr.id, items });
+    await http.post("/api/orders", { addressId: addr.id, couponId: selectedCouponId.value || 0, items });
     clear();
     localStorage.removeItem("shop_checkout_address_id");
     selectedAddressId.value = null;
@@ -71,8 +97,14 @@ async function submitOrder() {
   }
 }
 
-onMounted(loadAddresses);
-onActivated(loadAddresses);
+onMounted(() => {
+  loadAddresses();
+  loadCoupons();
+});
+onActivated(() => {
+  loadAddresses();
+  loadCoupons();
+});
 </script>
 
 <template>
@@ -91,6 +123,9 @@ onActivated(loadAddresses);
           </template>
         </van-cell>
       </van-cell-group>
+      <van-cell-group inset class="checkout-coupon">
+        <van-cell is-link :title="selectedCoupon ? selectedCoupon.title : '优惠券'" :value="selectedCoupon ? '-¥' + selectedCoupon.amount : (coupons.length ? '选择优惠券' : '暂无优惠券')" @click="showCouponPopup = true" />
+      </van-cell-group>
       <van-cell-group inset class="checkout-items">
         <van-cell v-for="item in cartItems" :key="item.product.id" :title="item.product.name">
           <template #icon><div class="cart-thumb" :style="{ background: item.product.color }">{{ item.product.emoji }}</div></template>
@@ -103,10 +138,23 @@ onActivated(loadAddresses);
           </template>
         </van-cell>
       </van-cell-group>
-      <div class="checkout-total"><span>合计</span><b>¥{{ total.toFixed(2) }}</b></div>
+      <div class="checkout-total">
+        <div class="checkout-total-row"><span>商品合计</span><span>¥{{ total.toFixed(2) }}</span></div>
+        <div v-if="discount > 0" class="checkout-total-row"><span>优惠</span><span class="checkout-discount">-¥{{ discount.toFixed(2) }}</span></div>
+        <div class="checkout-total-row"><span>实付</span><b>¥{{ payAmount.toFixed(2) }}</b></div>
+      </div>
       <div class="checkout-submit">
         <van-button block round type="danger" :loading="submitting" @click="submitOrder">提交订单</van-button>
       </div>
     </template>
+    <van-popup v-model:show="showCouponPopup" position="bottom" round>
+      <div class="coupon-popup">
+        <div class="coupon-popup-title">选择优惠券</div>
+        <van-cell title="不使用优惠券" @click="selectCoupon(null)" />
+        <van-cell v-for="c in coupons" :key="c.id" :title="c.title" :label="c.condition" :disabled="total < c.minAmount" @click="selectCoupon(c.id)">
+          <template #value><span class="coupon-popup-amount">-¥{{ c.amount }}</span></template>
+        </van-cell>
+      </div>
+    </van-popup>
   </div>
 </template>

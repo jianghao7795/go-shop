@@ -109,9 +109,15 @@ button, input { font: inherit; }
 .checkout-address, .checkout-items { margin-top: 12px; }
 .checkout-no-addr { color: #ee0a24; }
 .checkout-line { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-.checkout-total { display: flex; align-items: center; justify-content: space-between; margin: 16px; padding: 0 4px; }
-.checkout-total span { color: #666b75; font-size: 14px; }
-.checkout-total b { color: #ee0a24; font-size: 22px; }
+.checkout-total { display: flex; flex-direction: column; gap: 6px; margin: 16px; padding: 0 4px; }
+.checkout-total-row { display: flex; align-items: center; justify-content: space-between; }
+.checkout-total-row span { color: #666b75; font-size: 14px; }
+.checkout-total-row b { color: #ee0a24; font-size: 20px; }
+.checkout-discount { color: #ee0a24; }
+.checkout-coupon { margin-top: 12px; }
+.coupon-popup { max-height: 60vh; overflow-y: auto; padding-bottom: 16px; }
+.coupon-popup-title { padding: 16px; text-align: center; font-size: 16px; font-weight: 600; color: #24262b; }
+.coupon-popup-amount { color: #ee0a24; font-size: 15px; font-weight: 600; }
 .checkout-submit { margin: 0 16px 16px; }
 .coupon-list { padding: 12px 16px; }
 .coupon-card { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 14px 16px; border-radius: 10px; background: #fff; box-shadow: 0 2px 10px rgba(28,35,50,.06); }
