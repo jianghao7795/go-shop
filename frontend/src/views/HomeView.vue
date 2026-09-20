@@ -18,14 +18,26 @@ interface Product {
   category: string;
 }
 
-const categories = [
-  { label: "推荐", value: "all", icon: "🔥" },
-  { label: "数码", value: "Digital", icon: "📱" },
-  { label: "家居", value: "Home", icon: "🏠" },
-  { label: "服饰", value: "Fashion", icon: "👕" },
-  { label: "美妆", value: "Beauty", icon: "💄" },
-  { label: "食品", value: "Food", icon: "🍊" },
-];
+interface Category {
+  key: string;
+  name: string;
+  icon: string;
+}
+
+const categories = ref([{ label: "推荐", value: "all", icon: "🔥" }]);
+
+async function loadCategories() {
+  try {
+    const res = await http.get("/api/categories");
+    const list = res.data as Category[];
+    categories.value = [
+      { label: "推荐", value: "all", icon: "🔥" },
+      ...list.map(c => ({ label: c.name, value: c.key, icon: c.icon })),
+    ];
+  } catch {
+    /* 分类加载失败，仅保留「推荐」 */
+  }
+}
 const activeCategory = ref("all");
 const search = ref("");
 const router = useRouter();
@@ -75,7 +87,10 @@ watch(search, () => {
 });
 watch(activeCategory, loadProducts);
 
-onMounted(loadProducts);
+onMounted(() => {
+  loadCategories();
+  loadProducts();
+});
 </script>
 
 <template>
