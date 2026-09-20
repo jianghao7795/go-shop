@@ -20,21 +20,96 @@ const router = createRouter({
   history: createWebHashHistory(),
   scrollBehavior: () => ({ top: 0 }),
   routes: [
-    { path: "/", name: "home", component: HomeView, meta: { title: "优选商城" } },
-    { path: "/category", name: "category", component: CategoryView, meta: { title: "商品分类" } },
-    { path: "/cart", name: "cart", component: CartView, meta: { title: "购物车" } },
-    { path: "/profile", name: "profile", component: ProfileView, meta: { title: "个人中心", requiresAuth: true } },
-    { path: "/product/:id", name: "product-detail", component: ProductDetailView, meta: { title: "商品详情", hideTabbar: true } },
-    { path: "/login", name: "login", component: LoginView, meta: { title: "登录", hideTabbar: true } },
-    { path: "/register", name: "register", component: RegisterView, meta: { title: "注册", hideTabbar: true } },
-    { path: "/orders", name: "orders", component: OrderListView, meta: { title: "我的订单", hideTabbar: true, requiresAuth: true } },
-    { path: "/orders/:id", name: "order-detail", component: OrderDetailView, meta: { title: "订单详情", hideTabbar: true, requiresAuth: true } },
-    { path: "/address", name: "address", component: AddressListView, meta: { title: "收货地址", hideTabbar: true, requiresAuth: true } },
-    { path: "/address/edit", name: "address-edit", component: AddressEditView, meta: { title: "编辑地址", hideTabbar: true, requiresAuth: true } },
-    { path: "/checkout", name: "checkout", component: CheckoutView, meta: { title: "确认订单", hideTabbar: true, requiresAuth: true } },
-    { path: "/coupons", name: "coupons", component: CouponView, meta: { title: "优惠券", hideTabbar: true, requiresAuth: true } },
-    { path: "/service", name: "service", component: ServiceView, meta: { title: "客服与帮助", hideTabbar: true, requiresAuth: true } },
-    { path: "/notifications", name: "notifications", component: NotificationsView, meta: { title: "消息通知", hideTabbar: true, requiresAuth: true } },
+    {
+      path: "/",
+      name: "home",
+      component: HomeView,
+      meta: { title: "优选商城" },
+    },
+    {
+      path: "/category",
+      name: "category",
+      component: CategoryView,
+      meta: { title: "商品分类" },
+    },
+    {
+      path: "/cart",
+      name: "cart",
+      component: CartView,
+      meta: { title: "购物车" },
+    },
+    {
+      path: "/profile",
+      name: "profile",
+      component: ProfileView,
+      meta: { title: "个人中心", requiresAuth: true },
+    },
+    {
+      path: "/product/:id",
+      name: "product-detail",
+      component: ProductDetailView,
+      meta: { title: "商品详情", hideTabbar: true },
+    },
+    {
+      path: "/login",
+      name: "login",
+      component: LoginView,
+      meta: { title: "登录", hideTabbar: true },
+    },
+    {
+      path: "/register",
+      name: "register",
+      component: RegisterView,
+      meta: { title: "注册", hideTabbar: true },
+    },
+    {
+      path: "/orders",
+      name: "orders",
+      component: OrderListView,
+      meta: { title: "我的订单", hideTabbar: true, requiresAuth: true },
+    },
+    {
+      path: "/orders/:id",
+      name: "order-detail",
+      component: OrderDetailView,
+      meta: { title: "订单详情", hideTabbar: true, requiresAuth: true },
+    },
+    {
+      path: "/address",
+      name: "address",
+      component: AddressListView,
+      meta: { title: "收货地址", hideTabbar: true, requiresAuth: true },
+    },
+    {
+      path: "/address/edit",
+      name: "address-edit",
+      component: AddressEditView,
+      meta: { title: "编辑地址", hideTabbar: true, requiresAuth: true },
+    },
+    {
+      path: "/checkout",
+      name: "checkout",
+      component: CheckoutView,
+      meta: { title: "确认订单", hideTabbar: true, requiresAuth: true },
+    },
+    {
+      path: "/coupons",
+      name: "coupons",
+      component: CouponView,
+      meta: { title: "优惠券", hideTabbar: true, requiresAuth: true },
+    },
+    {
+      path: "/service",
+      name: "service",
+      component: ServiceView,
+      meta: { title: "客服与帮助", hideTabbar: true, requiresAuth: true },
+    },
+    {
+      path: "/notifications",
+      name: "notifications",
+      component: NotificationsView,
+      meta: { title: "消息通知", hideTabbar: true, requiresAuth: true },
+    },
     { path: "/:pathMatch(.*)*", redirect: { name: "home" } },
   ],
 });
@@ -44,6 +119,7 @@ router.beforeEach((to) => {
   if (to.meta.requiresAuth && !userStore.isLoggedIn) {
     return { name: "login", query: { redirect: to.fullPath } };
   }
+  return;
 });
 
 router.afterEach((to) => {
@@ -51,4 +127,3 @@ router.afterEach((to) => {
 });
 
 export default router;
-
