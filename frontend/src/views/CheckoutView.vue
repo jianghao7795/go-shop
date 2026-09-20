@@ -8,6 +8,20 @@ import http from "../lib/http";
 
 interface Address { id: number; name: string; phone: string; region: string; detail: string; isDefault: boolean; }
 interface Coupon { id: number; title: string; amount: number; minAmount: number; condition: string; }
+interface VantCoupon { id: number; value: number; name: string; condition: string; description: string; startAt: number; endAt: number; unitDesc: string; reason?: string; }
+
+function toVantCoupon(c: Coupon): VantCoupon {
+  return {
+    id: c.id,
+    value: c.amount,
+    name: c.title,
+    condition: c.condition,
+    description: "",
+    startAt: Date.now() - 7 * 86400000,
+    endAt: Date.now() + 30 * 86400000,
+    unitDesc: "元",
+  };
+}
 
 const router = useRouter();
 const shopCart = useShopCart();
@@ -17,8 +31,11 @@ const { clear, increase, decrease, remove } = shopCart;
 const addresses = ref<Address[]>([]);
 const selectedAddressId = ref<number | null>(null);
 const coupons = ref<Coupon[]>([]);
-const selectedCouponId = ref<number | null>(null);
 const showCouponPopup = ref(false);
+const chosenCoupon = ref(-1);
+
+const availableCoupons = computed(() => coupons.value.filter(c => total.value >= c.minAmount).map(toVantCoupon));
+const disabledCoupons = computed(() => coupons.value.filter(c => total.value < c.minAmount).map(c => ({ ...toVantCoupon(c), reason: "未达使用门槛" })));
 
 async function onMinus(item: { product: ShopProduct; quantity: number }) {
   if (item.quantity <= 1) {
@@ -38,13 +55,9 @@ const selectedAddress = computed(() => {
   return addresses.value.find(a => a.isDefault) || addresses.value[0] || null;
 });
 
-const selectedCoupon = computed(() => coupons.value.find(c => c.id === selectedCouponId.value) || null);
+const selectedCoupon = computed(() => chosenCoupon.value >= 0 ? availableCoupons.value[chosenCoupon.value] || null : null);
 
-const discount = computed(() => {
-  if (!selectedCoupon.value) return 0;
-  if (total.value < selectedCoupon.value.minAmount) return 0;
-  return Math.min(selectedCoupon.value.amount, total.value);
-});
+const discount = computed(() => selectedCoupon.value ? Math.min(selectedCoupon.value.value, total.value) : 0);
 
 const payAmount = computed(() => Math.max(0, total.value - discount.value));
 
@@ -63,12 +76,8 @@ async function loadCoupons() {
   } catch { /* 忽略 */ }
 }
 
-function selectCoupon(coupon: Coupon | null) {
-  if (coupon && total.value < coupon.minAmount) {
-    showToast("未达到使用门槛");
-    return;
-  }
-  selectedCouponId.value = coupon ? coupon.id : null;
+function onCouponChange(index: number) {
+  chosenCoupon.value = index;
   showCouponPopup.value = false;
 }
 
@@ -86,7 +95,7 @@ async function submitOrder() {
       emoji: it.product.emoji,
       color: it.product.color,
     }));
-    await http.post("/api/orders", { addressId: addr.id, couponId: selectedCouponId.value || 0, items });
+    await http.post("/api/orders", { addressId: addr.id, couponId: selectedCoupon.value ? selectedCoupon.value.id : 0, items });
     clear();
     localStorage.removeItem("shop_checkout_address_id");
     selectedAddressId.value = null;
@@ -128,7 +137,7 @@ onActivated(() => {
         </van-cell>
       </van-cell-group>
       <van-cell-group inset class="checkout-coupon">
-        <van-cell is-link :title="selectedCoupon ? selectedCoupon.title : '优惠券'" :value="selectedCoupon ? '-¥' + selectedCoupon.amount : (coupons.length ? '选择优惠券' : '暂无优惠券')" @click="showCouponPopup = true" />
+        <van-coupon-cell title="优惠券" :coupons="availableCoupons" :chosen-coupon="chosenCoupon" @click="showCouponPopup = true" />
       </van-cell-group>
       <van-cell-group inset class="checkout-items">
         <van-cell v-for="item in cartItems" :key="item.product.id" :title="item.product.name">
@@ -152,12 +161,15 @@ onActivated(() => {
       </div>
     </template>
     <van-popup v-model:show="showCouponPopup" position="bottom" round>
-      <div class="coupon-popup">
-        <div class="coupon-popup-title">选择优惠券</div>
-        <van-cell title="不使用优惠券" @click="selectCoupon(null)" />
-        <van-cell v-for="c in coupons" :key="c.id" :title="c.title" :label="total < c.minAmount ? c.condition + '（未达门槛）' : c.condition" @click="selectCoupon(c)">
-          <template #value><span :class="total < c.minAmount ? 'coupon-popup-amount coupon-popup-amount-disabled' : 'coupon-popup-amount'">-¥{{ c.amount }}</span></template>
-        </van-cell>
+      <div class="coupon-list-popup">
+        <van-coupon-list
+          :coupons="availableCoupons"
+          :disabled-coupons="disabledCoupons"
+          :chosen-coupon="chosenCoupon"
+          :show-exchange-bar="false"
+          close-button-text="不使用优惠券"
+          @change="onCouponChange"
+        />
       </div>
     </van-popup>
   </div>
