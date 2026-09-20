@@ -14,6 +14,7 @@ const { cartItems, total } = storeToRefs(shopCart);
 const { clear, increase, decrease, remove } = shopCart;
 
 const addresses = ref<Address[]>([]);
+const selectedAddressId = ref<number | null>(null);
 
 async function onMinus(item: { product: ShopProduct; quantity: number }) {
   if (item.quantity <= 1) {
@@ -27,17 +28,22 @@ async function onMinus(item: { product: ShopProduct; quantity: number }) {
 }
 const submitting = ref(false);
 
-const defaultAddress = computed(() => addresses.value.find(a => a.isDefault) || addresses.value[0] || null);
+const selectedAddress = computed(() => {
+  const bySelected = addresses.value.find(a => a.id === selectedAddressId.value);
+  if (bySelected) return bySelected;
+  return addresses.value.find(a => a.isDefault) || addresses.value[0] || null;
+});
 
 async function loadAddresses() {
   try {
     const res = await http.get("/api/addresses");
     addresses.value = res.data;
+    selectedAddressId.value = Number(localStorage.getItem("shop_checkout_address_id")) || null;
   } catch { /* 忽略 */ }
 }
 
 async function submitOrder() {
-  const addr = defaultAddress.value;
+  const addr = selectedAddress.value;
   if (!cartItems.value.length) { showToast("购物车为空"); return; }
   if (!addr) { showToast("请先添加收货地址"); router.push("/address/edit"); return; }
   submitting.value = true;
@@ -52,6 +58,8 @@ async function submitOrder() {
     }));
     await http.post("/api/orders", { addressId: addr.id, items });
     clear();
+    localStorage.removeItem("shop_checkout_address_id");
+    selectedAddressId.value = null;
     showToast("下单成功");
     router.replace("/orders");
   } catch (err) {
@@ -75,9 +83,9 @@ onActivated(loadAddresses);
       <van-cell-group inset class="checkout-address">
         <van-cell is-link @click="router.push('/address?select=1')">
           <template #title>
-            <div v-if="defaultAddress">
-              <div class="address-title"><strong>{{ defaultAddress.name }}</strong><span>{{ defaultAddress.phone }}</span></div>
-              <div class="address-detail">{{ defaultAddress.region }} {{ defaultAddress.detail }}</div>
+            <div v-if="selectedAddress">
+              <div class="address-title"><strong>{{ selectedAddress.name }}</strong><span>{{ selectedAddress.phone }}</span></div>
+              <div class="address-detail">{{ selectedAddress.region }} {{ selectedAddress.detail }}</div>
             </div>
             <div v-else class="checkout-no-addr">请选择收货地址</div>
           </template>

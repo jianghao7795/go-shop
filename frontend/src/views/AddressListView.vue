@@ -31,14 +31,10 @@ function edit(addr: Address) {
   router.push({ name: "address-edit", query: { id: addr.id } });
 }
 
-async function onCardClick(addr: Address) {
+function onCardClick(addr: Address) {
   if (selecting) {
-    try {
-      await http.put("/api/addresses/" + addr.id + "/default");
-      router.back();
-    } catch {
-      showToast("选择失败，请重试");
-    }
+    localStorage.setItem("shop_checkout_address_id", String(addr.id));
+    router.back();
     return;
   }
   edit(addr);
