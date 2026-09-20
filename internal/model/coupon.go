@@ -23,10 +23,13 @@ type Coupon struct {
 // TableName 使用独立的 shop_coupons 表。
 func (Coupon) TableName() string { return "shop_coupons" }
 
-var (
-	couponStart = time.Now().Add(-7 * 24 * time.Hour)
-	couponEnd   = time.Now().Add(30 * 24 * time.Hour)
-)
+// DefaultCouponPeriod 返回默认优惠券有效期（过去 7 天 ~ 未来 30 天）。
+func DefaultCouponPeriod() (time.Time, time.Time) {
+	now := time.Now()
+	return now.Add(-7 * 24 * time.Hour), now.Add(30 * 24 * time.Hour)
+}
+
+var couponStart, couponEnd = DefaultCouponPeriod()
 
 // Coupons 是内置优惠券种子数据，也用作数据库不可用时的兜底。
 var Coupons = []Coupon{

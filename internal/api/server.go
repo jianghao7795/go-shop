@@ -49,6 +49,10 @@ func Start() {
 				log.Printf("seeded %d coupons", len(model.Coupons))
 			}
 		}
+		// 补齐历史优惠券的有效期（新增 start_at/end_at 字段后，旧数据可能为空）
+		couponStart, couponEnd := model.DefaultCouponPeriod()
+		db.Model(&model.Coupon{}).Where("start_at IS NULL").Update("start_at", couponStart)
+		db.Model(&model.Coupon{}).Where("end_at IS NULL").Update("end_at", couponEnd)
 	}
 
 	gin.SetMode(gin.ReleaseMode)
