@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import { storeToRefs } from "pinia";
 import { showConfirmDialog, showToast } from "vant";
 import { useShopCart, type ShopProduct } from "../stores/shop";
 
 const router = useRouter();
-const { cartItems, count, total, increase, decrease, remove } = useShopCart();
+const shopCart = useShopCart();
+const { cartItems, count, total } = storeToRefs(shopCart);
+const { increase, decrease, remove } = shopCart;
 const editing = ref(false);
 const selected = ref<number[]>([]);
 

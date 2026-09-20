@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import { storeToRefs } from "pinia";
 import { showConfirmDialog, showToast } from "vant";
 import { useShopCart, type ShopProduct } from "../stores/shop";
 import http from "../lib/http";
@@ -8,7 +9,9 @@ import http from "../lib/http";
 interface Address { id: number; name: string; phone: string; region: string; detail: string; isDefault: boolean; }
 
 const router = useRouter();
-const { cartItems, total, clear, increase, decrease, remove } = useShopCart();
+const shopCart = useShopCart();
+const { cartItems, total } = storeToRefs(shopCart);
+const { clear, increase, decrease, remove } = shopCart;
 
 const addresses = ref<Address[]>([]);
 

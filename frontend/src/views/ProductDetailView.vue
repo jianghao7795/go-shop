@@ -1,13 +1,16 @@
 ﻿<script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { storeToRefs } from "pinia";
 import { showToast } from "vant";
 import { useShopCart, type ShopProduct } from "../stores/shop";
 import http from "../lib/http";
 
 const route = useRoute();
 const router = useRouter();
-const { add, count: cartCount } = useShopCart();
+const shopCart = useShopCart();
+const { count: cartCount } = storeToRefs(shopCart);
+const { add } = shopCart;
 const product = ref<ShopProduct | null>(null);
 const quantity = ref(1);
 const loading = ref(true);
