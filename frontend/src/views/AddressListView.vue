@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { showConfirmDialog, showToast } from "vant";
 import http from "../lib/http";
 
 interface Address { id: number; name: string; phone: string; region: string; detail: string; tag: string; isDefault: boolean; }
 
 const router = useRouter();
+const route = useRoute();
+const selecting = route.query.select === "1";
 const addresses = ref<Address[]>([]);
 const loading = ref(false);
 
@@ -27,6 +29,19 @@ async function load() {
 
 function edit(addr: Address) {
   router.push({ name: "address-edit", query: { id: addr.id } });
+}
+
+async function onCardClick(addr: Address) {
+  if (selecting) {
+    try {
+      await http.put("/api/addresses/" + addr.id + "/default");
+      router.back();
+    } catch {
+      showToast("选择失败，请重试");
+    }
+    return;
+  }
+  edit(addr);
 }
 
 function maskPhone(phone: string) {
@@ -61,12 +76,12 @@ onMounted(load);
 
 <template>
   <div class="sub-page">
-    <van-nav-bar title="收货地址" left-arrow @click-left="$router.back()" />
+    <van-nav-bar :title="selecting ? '选择收货地址' : '收货地址'" left-arrow @click-left="$router.back()" />
     <div v-if="loading" class="loading"><van-loading color="#ff4d67" /></div>
     <van-empty v-else-if="!addresses.length" description="还没有收货地址" />
     <div v-else class="address-cards">
       <van-swipe-cell v-for="addr in addresses" :key="addr.id">
-        <div class="address-card" @click="edit(addr)">
+        <div class="address-card" @click="onCardClick(addr)">
           <div class="address-card-top">
             <span v-if="addr.tag" class="address-tag" :style="{ color: tagColor[addr.tag], background: tagBg[addr.tag] }">{{ addr.tag }}</span>
             <strong>{{ addr.name }}</strong>

@@ -73,7 +73,7 @@ onActivated(loadAddresses);
     <van-empty v-if="!cartItems.length" description="购物车为空" />
     <template v-else>
       <van-cell-group inset class="checkout-address">
-        <van-cell is-link @click="router.push('/address')">
+        <van-cell is-link @click="router.push('/address?select=1')">
           <template #title>
             <div v-if="defaultAddress">
               <div class="address-title"><strong>{{ defaultAddress.name }}</strong><span>{{ defaultAddress.phone }}</span></div>
