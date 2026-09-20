@@ -118,6 +118,7 @@ button, input { font: inherit; }
 .coupon-popup { max-height: 60vh; overflow-y: auto; padding-bottom: 16px; }
 .coupon-popup-title { padding: 16px; text-align: center; font-size: 16px; font-weight: 600; color: #24262b; }
 .coupon-popup-amount { color: #ee0a24; font-size: 15px; font-weight: 600; }
+.coupon-popup-amount-disabled { color: #c8c9cc; }
 .checkout-submit { margin: 0 16px 16px; }
 .coupon-list { padding: 12px 16px; }
 .coupon-card { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 14px 16px; border-radius: 10px; background: #fff; box-shadow: 0 2px 10px rgba(28,35,50,.06); }

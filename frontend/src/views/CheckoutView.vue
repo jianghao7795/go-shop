@@ -63,8 +63,12 @@ async function loadCoupons() {
   } catch { /* 忽略 */ }
 }
 
-function selectCoupon(id: number | null) {
-  selectedCouponId.value = id;
+function selectCoupon(coupon: Coupon | null) {
+  if (coupon && total.value < coupon.minAmount) {
+    showToast("未达到使用门槛");
+    return;
+  }
+  selectedCouponId.value = coupon ? coupon.id : null;
   showCouponPopup.value = false;
 }
 
@@ -151,8 +155,8 @@ onActivated(() => {
       <div class="coupon-popup">
         <div class="coupon-popup-title">选择优惠券</div>
         <van-cell title="不使用优惠券" @click="selectCoupon(null)" />
-        <van-cell v-for="c in coupons" :key="c.id" :title="c.title" :label="c.condition" :disabled="total < c.minAmount" @click="selectCoupon(c.id)">
-          <template #value><span class="coupon-popup-amount">-¥{{ c.amount }}</span></template>
+        <van-cell v-for="c in coupons" :key="c.id" :title="c.title" :label="total < c.minAmount ? c.condition + '（未达门槛）' : c.condition" @click="selectCoupon(c)">
+          <template #value><span :class="total < c.minAmount ? 'coupon-popup-amount coupon-popup-amount-disabled' : 'coupon-popup-amount'">-¥{{ c.amount }}</span></template>
         </van-cell>
       </div>
     </van-popup>
