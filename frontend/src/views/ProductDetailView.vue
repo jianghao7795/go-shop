@@ -9,7 +9,7 @@ import http from "../lib/http";
 const route = useRoute();
 const router = useRouter();
 const shopCart = useShopCart();
-const { count: cartCount } = storeToRefs(shopCart);
+const { cartItems } = storeToRefs(shopCart);
 const { add } = shopCart;
 const product = ref<ShopProduct | null>(null);
 const quantity = ref(1);
@@ -66,7 +66,7 @@ onMounted(loadProduct);
       </section>
       <van-action-bar>
         <van-action-bar-icon icon="service-o" text="客服" @click="showToast('客服暂未开通')" />
-        <van-action-bar-icon icon="cart-o" text="购物车" :badge="cartCount || undefined" to="/cart" />
+        <van-action-bar-icon icon="cart-o" text="购物车" :badge="cartItems.length || undefined" to="/cart" />
         <van-action-bar-icon icon="star-o" text="收藏" @click="showToast('已收藏')" />
         <van-action-bar-button type="warning" text="加入购物车" @click="addToCart" />
         <van-action-bar-button type="danger" text="立即购买" @click="buyNow" />
