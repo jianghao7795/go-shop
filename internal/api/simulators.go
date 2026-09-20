@@ -11,25 +11,23 @@ import (
 
 // startSimulators 启动两个后台模拟器，用于演示服务器主动推送：
 // 1) 模拟商家定时发货：把最早的待付款订单改为待收货；
-// 2) 模拟营销：定时向在线用户推送优惠券通知。
+// 2) 模拟营销：优惠券发放 10 分钟后向在线用户推送一次通知。
 func startSimulators(db *gorm.DB, hub *notificationHub) {
 	if db == nil {
 		return
 	}
 	go func() {
 		shipTicker := time.NewTicker(20 * time.Second)
-		couponTicker := time.NewTicker(90 * time.Second)
-		couponIndex := 0
+		// 优惠券通知只发一次（time.Timer 触发一次后不再触发），不再定时循环。
+		couponTimer := time.NewTimer(10 * time.Minute)
 		for {
 			select {
 			case <-shipTicker.C:
 				shipNextOrder(db, hub)
-			case <-couponTicker.C:
-				if len(coupons) == 0 {
-					continue
+			case <-couponTimer.C:
+				if len(coupons) > 0 {
+					pushCouponToOnline(db, hub, coupons[0])
 				}
-				pushCouponToOnline(db, hub, coupons[couponIndex%len(coupons)])
-				couponIndex++
 			}
 		}
 	}()
