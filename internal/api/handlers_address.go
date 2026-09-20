@@ -99,7 +99,14 @@ func updateAddress(db *gorm.DB) gin.HandlerFunc {
 		if req.IsDefault {
 			db.Model(&model.Address{}).Where("user_id = ?", currentUser(c)).Update("is_default", false)
 		}
-		db.Model(&addr).Updates(model.Address{Name: req.Name, Phone: req.Phone, Region: req.Region, Detail: req.Detail, Tag: req.Tag, IsDefault: req.IsDefault})
+		db.Model(&addr).Updates(map[string]interface{}{
+			"name":       req.Name,
+			"phone":      req.Phone,
+			"region":     req.Region,
+			"detail":     req.Detail,
+			"tag":        req.Tag,
+			"is_default": req.IsDefault,
+		})
 		c.JSON(http.StatusOK, addr)
 	}
 }

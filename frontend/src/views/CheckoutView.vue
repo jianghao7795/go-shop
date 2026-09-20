@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onActivated, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { showConfirmDialog, showToast } from "vant";
@@ -64,6 +64,7 @@ async function submitOrder() {
 }
 
 onMounted(loadAddresses);
+onActivated(loadAddresses);
 </script>
 
 <template>
