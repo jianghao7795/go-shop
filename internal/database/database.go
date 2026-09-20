@@ -15,7 +15,7 @@ func DSN() string {
 	user := envOr("MYSQL_USER", "root")
 	password := envOr("MYSQL_PASSWORD", "123456")
 	database := envOr("MYSQL_DATABASE", "shop")
-	return user + ":" + password + "@tcp(" + host + ":" + port + ")/" + database + "?parseTime=true&charset=utf8mb4"
+	return user + ":" + password + "@tcp(" + host + ":" + port + ")/" + database + "?parseTime=true&charset=utf8mb4&loc=Local"
 }
 
 // AdminDSN 返回不指定数据库的 DSN，用于在目标库不存在时创建它。
