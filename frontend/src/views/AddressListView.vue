@@ -38,7 +38,9 @@ async function setDefault(addr: Address) {
     await http.put("/api/addresses/" + addr.id + "/default");
     showToast("已设为默认");
     addresses.value = addresses.value.map(a => ({ ...a, isDefault: a.id === addr.id }));
-  } catch { /* 忽略 */ }
+  } catch {
+    showToast("设置默认失败，请重试");
+  }
 }
 
 async function remove(addr: Address) {
