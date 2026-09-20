@@ -8,12 +8,13 @@ import http from "../lib/http";
 
 interface Address { id: number; name: string; phone: string; region: string; detail: string; isDefault: boolean; }
 interface Coupon { id: number; title: string; amount: number; minAmount: number; condition: string; startAt: string; endAt: string; }
-interface VantCoupon { id: number; value: number; name: string; condition: string; description: string; startAt: number; endAt: number; unitDesc: string; reason?: string; }
+interface VantCoupon { id: number; value: number; denominations?: number; name: string; condition: string; description: string; startAt: number; endAt: number; unitDesc: string; reason?: string; }
 
 function toVantCoupon(c: Coupon): VantCoupon {
   return {
     id: c.id,
-    value: c.amount,
+    value: c.amount * 100,
+    denominations: c.amount * 100,
     name: c.title,
     condition: c.condition,
     description: "",
@@ -57,7 +58,7 @@ const selectedAddress = computed(() => {
 
 const selectedCoupon = computed(() => chosenCoupon.value >= 0 ? availableCoupons.value[chosenCoupon.value] || null : null);
 
-const discount = computed(() => selectedCoupon.value ? Math.min(selectedCoupon.value.value, total.value) : 0);
+const discount = computed(() => selectedCoupon.value ? Math.min(selectedCoupon.value.value / 100, total.value) : 0);
 
 const payAmount = computed(() => Math.max(0, total.value - discount.value));
 
