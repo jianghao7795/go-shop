@@ -7,7 +7,7 @@ import { useShopCart, type ShopProduct } from "../stores/shop";
 import http from "../lib/http";
 
 interface Address { id: number; name: string; phone: string; region: string; detail: string; isDefault: boolean; }
-interface Coupon { id: number; title: string; amount: number; minAmount: number; condition: string; }
+interface Coupon { id: number; title: string; amount: number; minAmount: number; condition: string; startAt: string; endAt: string; }
 interface VantCoupon { id: number; value: number; name: string; condition: string; description: string; startAt: number; endAt: number; unitDesc: string; reason?: string; }
 
 function toVantCoupon(c: Coupon): VantCoupon {
@@ -17,8 +17,8 @@ function toVantCoupon(c: Coupon): VantCoupon {
     name: c.title,
     condition: c.condition,
     description: "",
-    startAt: Date.now() - 7 * 86400000,
-    endAt: Date.now() + 30 * 86400000,
+    startAt: Math.floor(new Date(c.startAt).getTime() / 1000),
+    endAt: Math.floor(new Date(c.endAt).getTime() / 1000),
     unitDesc: "元",
   };
 }
