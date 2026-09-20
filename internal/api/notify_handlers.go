@@ -79,7 +79,7 @@ func unreadCount(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		var count int64
-		db.Model(&model.Notification{}).Where("user_id = ? AND read = ?", currentUser(c), false).Count(&count)
+		db.Model(&model.Notification{}).Where("user_id = ? AND `read` = ?", currentUser(c), false).Count(&count)
 		c.JSON(http.StatusOK, gin.H{"count": count})
 	}
 }
