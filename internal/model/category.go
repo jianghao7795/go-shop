@@ -1,14 +1,18 @@
 package model
 
-// Category 是商品分类的元数据（Key 与商品表的 category 字段对齐）。
+// Category 是商品分类（持久化到数据库 shop_categories）。
 type Category struct {
-	Key  string `json:"key"`
-	Name string `json:"name"`
-	Icon string `json:"icon"`
-	Note string `json:"note"`
+	ID   uint   `json:"id" gorm:"primaryKey"`
+	Key  string `json:"key" gorm:"size:32;uniqueIndex"`
+	Name string `json:"name" gorm:"size:64"`
+	Icon string `json:"icon" gorm:"size:8"`
+	Note string `json:"note" gorm:"size:128"`
 }
 
-// Categories 是内置的商品分类列表。
+// TableName 使用独立的 shop_categories 表。
+func (Category) TableName() string { return "shop_categories" }
+
+// Categories 是内置分类种子数据，也用作数据库不可用时的兜底。
 var Categories = []Category{
 	{Key: "Digital", Name: "数码电器", Icon: "📱", Note: "手机、耳机、智能设备"},
 	{Key: "Home", Name: "家居生活", Icon: "🏠", Note: "居家好物，提升生活品质"},

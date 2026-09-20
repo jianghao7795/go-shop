@@ -18,7 +18,7 @@ func Start() {
 	databaseReady := err == nil
 	if err != nil {
 		log.Printf("mysql unavailable, serving catalog fallback: %v", err)
-	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}); migrateErr != nil {
+	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}); migrateErr != nil {
 		log.Printf("mysql migration failed: %v", migrateErr)
 		databaseReady = false
 	} else {
@@ -29,6 +29,15 @@ func Start() {
 				log.Printf("product seed failed: %v", seedErr)
 			} else {
 				log.Printf("seeded %d products", len(model.FallbackProducts))
+			}
+		}
+		var catCount int64
+		db.Model(&model.Category{}).Count(&catCount)
+		if catCount == 0 {
+			if seedErr := db.Create(&model.Categories).Error; seedErr != nil {
+				log.Printf("category seed failed: %v", seedErr)
+			} else {
+				log.Printf("seeded %d categories", len(model.Categories))
 			}
 		}
 	}
@@ -65,7 +74,7 @@ func Start() {
 	protected.PUT("/notifications/:id/read", markNotificationRead(db))
 
 	router.GET("/api/health", healthHandler(databaseReady))
-	router.GET("/api/categories", listCategories())
+	router.GET("/api/categories", listCategories(db, databaseReady))
 	router.GET("/api/products/:id", productDetailHandler(db, databaseReady))
 	router.GET("/api/products", productsHandler(db, databaseReady))
 

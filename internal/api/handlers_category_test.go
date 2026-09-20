@@ -11,13 +11,13 @@ import (
 	"shop/internal/model"
 )
 
-func TestListCategories(t *testing.T) {
+func TestListCategoriesFallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("GET", "/api/categories", nil)
 
-	listCategories()(c)
+	listCategories(nil, false)(c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -33,5 +33,11 @@ func TestListCategories(t *testing.T) {
 		if cat.Key == "" || cat.Name == "" || cat.Icon == "" {
 			t.Fatalf("category missing key/name/icon: %+v", cat)
 		}
+	}
+}
+
+func TestCategoryTableName(t *testing.T) {
+	if got := (model.Category{}).TableName(); got != "shop_categories" {
+		t.Fatalf("TableName = %q, want shop_categories", got)
 	}
 }
