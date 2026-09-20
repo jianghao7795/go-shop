@@ -12,6 +12,7 @@
   "dependencies": {
     "@vant/area-data": "^2.2.0",
     "@wailsio/runtime": "latest",
+    "axios": "^1.20.0",
     "pinia": "^3.0.4",
     "vant": "^4.10.2",
     "vue": "^3.5.42",

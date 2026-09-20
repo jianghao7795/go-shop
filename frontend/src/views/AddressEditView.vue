@@ -3,13 +3,12 @@ import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { showToast } from "vant";
 import { areaList, useCascaderAreaData } from "@vant/area-data";
-import { useUserStore } from "../stores/user";
+import http from "../lib/http";
 
 interface Address { id: number; name: string; phone: string; region: string; detail: string; tag: string; isDefault: boolean; }
 
 const route = useRoute();
 const router = useRouter();
-const userStore = useUserStore();
 
 const id = ref(Number(route.query.id) || 0);
 const name = ref("");
@@ -67,12 +66,8 @@ function recognize() {
 
 async function loadExisting() {
   if (!id.value) return;
-  const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
-  const response = await fetch(apiBase + "/api/addresses", {
-    headers: { Authorization: "Bearer " + userStore.token },
-  });
-  if (!response.ok) return;
-  const list = await response.json() as Address[];
+  const res = await http.get("/api/addresses");
+  const list = res.data as Address[];
   const addr = list.find(a => a.id === id.value);
   if (addr) {
     name.value = addr.name;
@@ -87,20 +82,15 @@ async function loadExisting() {
 async function onSubmit() {
   loading.value = true;
   try {
-    const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
-    const body = JSON.stringify({ name: name.value, phone: phone.value, region: region.value, detail: detail.value, tag: tag.value, isDefault: isDefault.value });
-    const url = apiBase + "/api/addresses" + (id.value ? "/" + id.value : "");
-    const response = await fetch(url, {
-      method: id.value ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + userStore.token },
-      body,
-    });
-    const data = await response.json();
-    if (!response.ok) { showToast(data.message || "保存失败"); return; }
+    const payload = { name: name.value, phone: phone.value, region: region.value, detail: detail.value, tag: tag.value, isDefault: isDefault.value };
+    if (id.value) await http.put("/api/addresses/" + id.value, payload);
+    else await http.post("/api/addresses", payload);
     showToast("保存成功");
     router.back();
-  } catch {
-    showToast("保存失败，请稍后重试");
+  } catch (err) {
+    const e = err as any;
+    if (e?.response) showToast(e.response.data?.message || "保存失败");
+    else showToast("保存失败，请稍后重试");
   } finally {
     loading.value = false;
   }

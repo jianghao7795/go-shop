@@ -1,22 +1,18 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { showToast } from "vant";
-import { useUserStore } from "../stores/user";
+import http from "../lib/http";
 
 interface Coupon { id: number; title: string; amount: number; condition: string; }
 
-const userStore = useUserStore();
 const coupons = ref<Coupon[]>([]);
 const loading = ref(false);
 
 async function load() {
   loading.value = true;
   try {
-    const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
-    const response = await fetch(apiBase + "/api/coupons", {
-      headers: { Authorization: "Bearer " + userStore.token },
-    });
-    coupons.value = response.ok ? await response.json() : [];
+    const res = await http.get("/api/coupons");
+    coupons.value = res.data;
   } catch {
     coupons.value = [];
   } finally {

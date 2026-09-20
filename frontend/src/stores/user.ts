@@ -1,5 +1,7 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
+import { isAxiosError } from "axios";
+import http from "../lib/http";
 
 const TOKEN_KEY = "shop_token";
 const USER_KEY = "shop_user";
@@ -25,16 +27,12 @@ export const useUserStore = defineStore("user", () => {
 
   async function validate() {
     if (!token.value) return;
-    const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
     try {
-      const response = await fetch(apiBase + "/api/me", {
-        headers: { Authorization: "Bearer " + token.value },
-      });
-      if (!response.ok) { logout(); return; }
-      const data = await response.json();
-      if (data.username) username.value = data.username;
-    } catch {
-      // 网络不可用时不强制登出，保留本地登录态
+      const res = await http.get("/api/me");
+      if (res.data.username) username.value = res.data.username;
+    } catch (err) {
+      // HTTP 错误（含 401）时登出；网络不可用时不强制登出，保留本地登录态
+      if (isAxiosError(err) && err.response) logout();
     }
   }
 

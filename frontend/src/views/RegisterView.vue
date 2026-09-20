@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { showToast } from "vant";
+import http from "../lib/http";
 
 const router = useRouter();
 const username = ref("");
@@ -35,21 +36,13 @@ async function onSubmit() {
   }
   loading.value = true;
   try {
-    const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
-    const response = await fetch(apiBase + "/api/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: username.value, password: password.value }),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      showToast(data.message || "注册失败");
-      return;
-    }
+    await http.post("/api/register", { username: username.value, password: password.value });
     showToast("注册成功，请登录");
     router.replace({ name: "login", query: { username: username.value } });
-  } catch {
-    showToast("注册服务暂不可用，请稍后重试");
+  } catch (err) {
+    const e = err as any;
+    if (e?.response) showToast(e.response.data?.message || "注册失败");
+    else showToast("注册服务暂不可用，请稍后重试");
   } finally {
     loading.value = false;
   }

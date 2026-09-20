@@ -2,6 +2,7 @@
 import { onMounted, ref, watch } from "vue";
 import { showToast } from "vant";
 import { useShopCart } from "../stores/shop";
+import http from "../lib/http";
 
 interface Category {
   key: string;
@@ -22,7 +23,6 @@ interface Product {
   category: string;
 }
 
-const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
 const categories = ref<Category[]>([]);
 const active = ref(0);
 const products = ref<Product[]>([]);
@@ -31,11 +31,9 @@ const { add: addToCartItem } = useShopCart();
 
 async function loadCategories() {
   try {
-    const response = await fetch(`${apiBase}/api/categories`);
-    if (response.ok) {
-      categories.value = await response.json();
-      await loadProducts();
-    }
+    const res = await http.get("/api/categories");
+    categories.value = res.data;
+    await loadProducts();
   } catch {
     /* 分类加载失败，保持空列表 */
   }
@@ -46,8 +44,8 @@ async function loadProducts() {
   if (!cat) return;
   loading.value = true;
   try {
-    const response = await fetch(`${apiBase}/api/products?category=${encodeURIComponent(cat.key)}`);
-    products.value = response.ok ? await response.json() : [];
+    const res = await http.get("/api/products", { params: { category: cat.key } });
+    products.value = res.data;
   } catch {
     products.value = [];
   } finally {

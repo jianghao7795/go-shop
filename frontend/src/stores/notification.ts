@@ -1,6 +1,7 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
 import { showToast } from "vant";
+import http from "../lib/http";
 import { useUserStore } from "./user";
 
 export interface AppNotification {
@@ -22,26 +23,24 @@ export const useNotificationStore = defineStore("notification", () => {
   const unread = ref(0);
   let source: EventSource | null = null;
 
-  const authHeaders = () => ({ Authorization: "Bearer " + userStore.token });
-
   async function fetchList() {
-    const response = await fetch(apiBase() + "/api/notifications", { headers: authHeaders() });
-    if (response.ok) items.value = await response.json();
+    try {
+      const res = await http.get("/api/notifications");
+      items.value = res.data;
+    } catch { /* 忽略加载失败 */ }
   }
 
   async function fetchUnread() {
-    const response = await fetch(apiBase() + "/api/notifications/unread", { headers: authHeaders() });
-    if (response.ok) {
-      const data = await response.json();
-      unread.value = data.count || 0;
-    }
+    try {
+      const res = await http.get("/api/notifications/unread");
+      unread.value = res.data.count || 0;
+    } catch { /* 忽略加载失败 */ }
   }
 
   async function markRead(id: number) {
-    await fetch(apiBase() + "/api/notifications/" + id + "/read", {
-      method: "PUT",
-      headers: authHeaders(),
-    });
+    try {
+      await http.put("/api/notifications/" + id + "/read");
+    } catch { /* 忽略 */ }
     const item = items.value.find(i => i.id === id);
     if (item && !item.read) {
       item.read = true;
@@ -50,10 +49,9 @@ export const useNotificationStore = defineStore("notification", () => {
   }
 
   async function markAllRead() {
-    await fetch(apiBase() + "/api/notifications/read-all", {
-      method: "PUT",
-      headers: authHeaders(),
-    });
+    try {
+      await http.put("/api/notifications/read-all");
+    } catch { /* 忽略 */ }
     items.value.forEach(i => { i.read = true; });
     unread.value = 0;
   }

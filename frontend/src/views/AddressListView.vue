@@ -2,12 +2,11 @@
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { showConfirmDialog, showToast } from "vant";
-import { useUserStore } from "../stores/user";
+import http from "../lib/http";
 
 interface Address { id: number; name: string; phone: string; region: string; detail: string; tag: string; isDefault: boolean; }
 
 const router = useRouter();
-const userStore = useUserStore();
 const addresses = ref<Address[]>([]);
 const loading = ref(false);
 
@@ -17,11 +16,8 @@ const tagBg: Record<string, string> = { 家: "#fff1f2", 公司: "#e8f3ff", 学�
 async function load() {
   loading.value = true;
   try {
-    const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
-    const response = await fetch(apiBase + "/api/addresses", {
-      headers: { Authorization: "Bearer " + userStore.token },
-    });
-    addresses.value = response.ok ? await response.json() : [];
+    const res = await http.get("/api/addresses");
+    addresses.value = res.data;
   } catch {
     addresses.value = [];
   } finally {
@@ -38,15 +34,11 @@ function maskPhone(phone: string) {
 }
 
 async function setDefault(addr: Address) {
-  const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
-  const response = await fetch(apiBase + "/api/addresses/" + addr.id + "/default", {
-    method: "PUT",
-    headers: { Authorization: "Bearer " + userStore.token },
-  });
-  if (response.ok) {
+  try {
+    await http.put("/api/addresses/" + addr.id + "/default");
     showToast("已设为默认");
     addresses.value = addresses.value.map(a => ({ ...a, isDefault: a.id === addr.id }));
-  }
+  } catch { /* 忽略 */ }
 }
 
 async function remove(addr: Address) {
@@ -55,12 +47,11 @@ async function remove(addr: Address) {
   } catch {
     return;
   }
-  const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
-  const response = await fetch(apiBase + "/api/addresses/" + addr.id, {
-    method: "DELETE",
-    headers: { Authorization: "Bearer " + userStore.token },
-  });
-  if (response.ok) { showToast("已删除"); load(); }
+  try {
+    await http.delete("/api/addresses/" + addr.id);
+    showToast("已删除");
+    load();
+  } catch { /* 忽略 */ }
 }
 
 onMounted(load);

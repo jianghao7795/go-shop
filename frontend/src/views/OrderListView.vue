@@ -2,12 +2,11 @@
 import { onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { showToast } from "vant";
-import { useUserStore } from "../stores/user";
+import http from "../lib/http";
 
 interface OrderItem { productId: number; name: string; price: number; quantity: number; emoji: string; color: string; }
 interface Order { id: number; orderNo: string; status: string; amount: number; items: OrderItem[]; createdAt: string; }
 
-const userStore = useUserStore();
 const route = useRoute();
 const router = useRouter();
 const active = ref(0);
@@ -33,11 +32,9 @@ const statusMap: Record<string, { text: string; color: string }> = {
 async function loadOrders() {
   loading.value = true;
   try {
-    const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
     const status = tabs[active.value].name;
-    const url = apiBase + "/api/orders" + (status ? "?status=" + status : "");
-    const response = await fetch(url, { headers: { Authorization: "Bearer " + userStore.token } });
-    orders.value = response.ok ? await response.json() : [];
+    const res = await http.get("/api/orders", { params: status ? { status } : {} });
+    orders.value = res.data;
   } catch {
     orders.value = [];
   } finally {
@@ -47,18 +44,9 @@ async function loadOrders() {
 
 async function changeStatus(order: Order, status: string, text: string) {
   try {
-    const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
-    const response = await fetch(apiBase + "/api/orders/" + order.id + "/status", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + userStore.token },
-      body: JSON.stringify({ status }),
-    });
-    if (response.ok) {
-      showToast(text + "成功");
-      loadOrders();
-    } else {
-      showToast("操作失败");
-    }
+    await http.put("/api/orders/" + order.id + "/status", { status });
+    showToast(text + "成功");
+    loadOrders();
   } catch {
     showToast("操作失败，请稍后重试");
   }

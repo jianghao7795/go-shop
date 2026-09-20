@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { showToast } from "vant";
 import { useShopCart, type ShopProduct } from "../stores/shop";
+import http from "../lib/http";
 
 const route = useRoute();
 const router = useRouter();
@@ -15,10 +16,8 @@ const error = ref("");
 async function loadProduct() {
   loading.value = true;
   try {
-    const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
-    const response = await fetch(apiBase + "/api/products/" + route.params.id);
-    if (!response.ok) throw new Error("商品不存在");
-    product.value = await response.json() as ShopProduct;
+    const res = await http.get("/api/products/" + route.params.id);
+    product.value = res.data as ShopProduct;
   } catch {
     error.value = "商品信息加载失败，请稍后重试";
   } finally {

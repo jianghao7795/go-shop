@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { showToast } from "vant";
 import { useUserStore } from "../stores/user";
+import http from "../lib/http";
 
 const REMEMBER_KEY = "shop_remember";
 
@@ -30,27 +31,19 @@ if (route.query.username) username.value = String(route.query.username);
 async function onSubmit() {
   loading.value = true;
   try {
-    const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
-    const response = await fetch(apiBase + "/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: username.value, password: password.value }),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      showToast(data.message || "账号或密码错误");
-      return;
-    }
+    const res = await http.post("/api/login", { username: username.value, password: password.value });
     if (remember.value) {
       localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: username.value, password: password.value }));
     } else {
       localStorage.removeItem(REMEMBER_KEY);
     }
-    userStore.setAuth(data.token, username.value);
+    userStore.setAuth(res.data.token, username.value);
     showToast("登录成功");
     router.replace(String(route.query.redirect || "/profile"));
-  } catch {
-    showToast("登录服务暂不可用，请稍后重试");
+  } catch (err) {
+    const e = err as any;
+    if (e?.response) showToast(e.response.data?.message || "账号或密码错误");
+    else showToast("登录服务暂不可用，请稍后重试");
   } finally {
     loading.value = false;
   }

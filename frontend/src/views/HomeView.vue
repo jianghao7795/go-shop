@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { showToast } from "vant";
 import { useShopCart } from "../stores/shop";
 import { useUserStore } from "../stores/user";
+import http from "../lib/http";
 
 interface Product {
   id: number;
@@ -38,14 +39,12 @@ async function loadProducts() {
   loading.value = true;
   loadError.value = "";
   try {
-    const apiBase = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8080";
     const params = new URLSearchParams();
     if (search.value.trim()) params.set("search", search.value.trim());
     if (activeCategory.value !== "all") params.set("category", activeCategory.value);
     const qs = params.toString();
-    const response = await fetch(`${apiBase}/api/products` + (qs ? "?" + qs : ""));
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json() as Product[];
+    const res = await http.get("/api/products" + (qs ? "?" + qs : ""));
+    const data = res.data as Product[];
     products.value = data;
     if (!data.length) loadError.value = "没有找到相关商品";
   } catch {
