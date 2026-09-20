@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { nextTick, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { showToast } from "vant";
 import http from "../lib/http";
@@ -10,6 +10,61 @@ interface Order { id: number; orderNo: string; status: string; amount: number; r
 const route = useRoute();
 const order = ref<Order | null>(null);
 const loading = ref(false);
+
+const AMAP_KEY = import.meta.env.VITE_AMAP_KEY || "";
+const AMAP_SECURITY_KEY = import.meta.env.VITE_AMAP_SECURITY_KEY || "";
+const mapRef = ref<HTMLDivElement | null>(null);
+const mapError = ref("");
+
+let amapPromise: Promise<any> | null = null;
+
+function loadAMap(): Promise<any> {
+  if (!amapPromise) {
+    amapPromise = new Promise((resolve, reject) => {
+      (window as any)._AMapSecurityConfig = { securityJsCode: AMAP_SECURITY_KEY };
+      const script = document.createElement("script");
+      script.src = `https://webapi.amap.com/maps?v=2.0&key=${AMAP_KEY}&plugin=AMap.Geocoder`;
+      script.onload = () => resolve((window as any).AMap);
+      script.onerror = () => { amapPromise = null; reject(new Error("amap load failed")); };
+      document.head.appendChild(script);
+    });
+  }
+  return amapPromise;
+}
+
+function initMap(AMap: any, position: [number, number], title: string) {
+  if (!mapRef.value) return;
+  const map = new AMap.Map(mapRef.value, { zoom: 15, center: position });
+  map.add(new AMap.Marker({ position, title }));
+}
+
+async function renderMap() {
+  if (!order.value || !AMAP_KEY) return;
+  try {
+    const AMap = await loadAMap();
+    await nextTick();
+    if (!mapRef.value) return;
+    const address = `${order.value.region} ${order.value.detail}`.trim();
+    const geocoder = new AMap.Geocoder();
+    geocoder.getLocation(address, (status: string, result: any) => {
+      if (status === "complete" && result.geocodes && result.geocodes.length) {
+        const loc = result.geocodes[0].location;
+        initMap(AMap, [loc.lng, loc.lat], address);
+      } else {
+        geocoder.getLocation(order.value!.region || "深圳", (s2: string, r2: any) => {
+          if (s2 === "complete" && r2.geocodes && r2.geocodes.length) {
+            const loc2 = r2.geocodes[0].location;
+            initMap(AMap, [loc2.lng, loc2.lat], address);
+          } else {
+            mapError.value = "地图定位失败";
+          }
+        });
+      }
+    });
+  } catch {
+    mapError.value = "地图暂不可用";
+  }
+}
 
 const statusMap: Record<string, { text: string; color: string }> = {
   pending: { text: "待付款", color: "#ff976a" },
@@ -40,7 +95,10 @@ async function changeStatus(status: string, text: string) {
   } catch { /* 忽略 */ }
 }
 
-onMounted(load);
+onMounted(async () => {
+  await load();
+  renderMap();
+});
 </script>
 
 <template>
@@ -64,6 +122,8 @@ onMounted(load);
           </template>
         </van-cell>
       </van-cell-group>
+      <div v-if="AMAP_KEY && !mapError" ref="mapRef" class="order-map"></div>
+      <div v-if="mapError" class="order-map-error">{{ mapError }}</div>
       <van-cell-group inset class="detail-block">
         <van-cell v-for="item in order.items" :key="item.productId" :title="item.name" :value="'x' + item.quantity + '  ¥' + (item.price * item.quantity).toFixed(2)">
           <template #icon><div class="cart-thumb" :style="{ background: item.color }">{{ item.emoji }}</div></template>

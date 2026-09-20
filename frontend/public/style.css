@@ -126,6 +126,8 @@ button, input { font: inherit; }
 .detail-actions-bar { display: flex; justify-content: flex-end; gap: 8px; margin: 16px; }
 .order-receiver { color: #24262b; }
 .order-address { margin-top: 4px; color: #969ba5; font-size: 12px; }
+.order-map { height: 180px; margin: 12px 16px; border-radius: 8px; overflow: hidden; }
+.order-map-error { margin: 12px 16px; padding: 24px; text-align: center; color: #969ba5; font-size: 13px; }
 .cart-row { display: flex; align-items: center; }
 .cart-row .van-checkbox { margin-right: 8px; }
 .cart-edit { color: #fff; font-size: 14px; }

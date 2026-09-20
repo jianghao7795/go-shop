@@ -13,3 +13,8 @@ build/android/gen/
 # 本地构建产物
 *.exe
 .superpowers/
+
+# 本地环境变量（含高德 key，勿提交）
+.env
+.env.local
+.env.*.local
