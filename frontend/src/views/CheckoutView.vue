@@ -1,16 +1,27 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { showToast } from "vant";
-import { useShopCart } from "../stores/shop";
+import { showConfirmDialog, showToast } from "vant";
+import { useShopCart, type ShopProduct } from "../stores/shop";
 import http from "../lib/http";
 
 interface Address { id: number; name: string; phone: string; region: string; detail: string; isDefault: boolean; }
 
 const router = useRouter();
-const { cartItems, total, clear } = useShopCart();
+const { cartItems, total, clear, increase, decrease, remove } = useShopCart();
 
 const addresses = ref<Address[]>([]);
+
+async function onMinus(item: { product: ShopProduct; quantity: number }) {
+  if (item.quantity <= 1) {
+    try {
+      await showConfirmDialog({ title: "删除商品", message: `确定删除「${item.product.name}」吗？` });
+      remove([item.product.id]);
+    } catch { /* 用户取消 */ }
+    return;
+  }
+  decrease(item.product.id);
+}
 const submitting = ref(false);
 
 const defaultAddress = computed(() => addresses.value.find(a => a.isDefault) || addresses.value[0] || null);
@@ -69,8 +80,15 @@ onMounted(loadAddresses);
         </van-cell>
       </van-cell-group>
       <van-cell-group inset class="checkout-items">
-        <van-cell v-for="item in cartItems" :key="item.product.id" :title="item.product.name" :value="'x' + item.quantity + '  ¥' + (item.product.price * item.quantity).toFixed(2)">
+        <van-cell v-for="item in cartItems" :key="item.product.id" :title="item.product.name">
           <template #icon><div class="cart-thumb" :style="{ background: item.product.color }">{{ item.product.emoji }}</div></template>
+          <template #label>单价 ¥{{ item.product.price.toFixed(2) }}</template>
+          <template #value>
+            <div class="checkout-line">
+              <span>¥{{ (item.product.price * item.quantity).toFixed(2) }}</span>
+              <van-stepper :model-value="item.quantity" min="1" @minus="onMinus(item)" @plus="increase(item.product.id)" />
+            </div>
+          </template>
         </van-cell>
       </van-cell-group>
       <div class="checkout-total"><span>合计</span><b>¥{{ total.toFixed(2) }}</b></div>

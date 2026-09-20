@@ -108,6 +108,7 @@ button, input { font: inherit; }
 .address-add { margin: 16px; }
 .checkout-address, .checkout-items { margin-top: 12px; }
 .checkout-no-addr { color: #ee0a24; }
+.checkout-line { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .checkout-total { display: flex; align-items: center; justify-content: space-between; margin: 16px; padding: 0 4px; }
 .checkout-total span { color: #666b75; font-size: 14px; }
 .checkout-total b { color: #ee0a24; font-size: 22px; }

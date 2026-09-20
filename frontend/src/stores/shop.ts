@@ -36,6 +36,11 @@ export const useShopCart = defineStore("shopCart", () => {
     persist();
     showToast("已加入购物车");
   }
+  function increase(id: number) {
+    const line = items.value[id]; if (!line) return;
+    line.quantity += 1;
+    persist();
+  }
   function decrease(id: number) {
     const line = items.value[id]; if (!line) return;
     if (line.quantity <= 1) delete items.value[id]; else line.quantity -= 1;
@@ -49,5 +54,5 @@ export const useShopCart = defineStore("shopCart", () => {
     items.value = {};
     persist();
   }
-  return { items, cartItems, count, total, add, decrease, remove, clear };
+  return { items, cartItems, count, total, add, increase, decrease, remove, clear };
 });

@@ -1,13 +1,24 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
-import { showToast } from "vant";
-import { useShopCart } from "../stores/shop";
+import { showConfirmDialog, showToast } from "vant";
+import { useShopCart, type ShopProduct } from "../stores/shop";
 
 const router = useRouter();
-const { cartItems, count, total, decrease, remove } = useShopCart();
+const { cartItems, count, total, increase, decrease, remove } = useShopCart();
 const editing = ref(false);
 const selected = ref<number[]>([]);
+
+async function onMinus(item: { product: ShopProduct; quantity: number }) {
+  if (item.quantity <= 1) {
+    try {
+      await showConfirmDialog({ title: "删除商品", message: `确定删除「${item.product.name}」吗？` });
+      remove([item.product.id]);
+    } catch { /* 用户取消 */ }
+    return;
+  }
+  decrease(item.product.id);
+}
 
 function checkout() {
   if (!count.value) return;
@@ -55,7 +66,7 @@ function removeSelected() {
             </div>
           </template>
           <template #title><strong>{{ item.product.name }}</strong><div class="cart-desc">{{ item.product.description }}</div></template>
-          <template #value><div class="cart-price">¥{{ item.product.price.toFixed(2) }}<van-stepper :model-value="item.quantity" min="0" @minus="decrease(item.product.id)" /></div></template>
+          <template #value><div class="cart-price">¥{{ item.product.price.toFixed(2) }}<van-stepper :model-value="item.quantity" min="1" @minus="onMinus(item)" @plus="increase(item.product.id)" /></div></template>
         </van-cell>
       </van-cell-group>
       <div class="cart-submit">
