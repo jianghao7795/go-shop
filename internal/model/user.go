@@ -22,7 +22,7 @@ type User struct {
 	Nickname    string         `json:"nickname,omitempty" gorm:"size:64"`
 	Avatar      string         `json:"avatar,omitempty" gorm:"size:255"`
 	Role        string         `json:"role" gorm:"size:20;default:customer"`
-	Status      int            `json:"status" gorm:"default:1"`
+	Status      int            `json:"status" gorm:"type:tinyint;not null;default:1"`
 	LastLoginAt *time.Time     `json:"lastLoginAt,omitempty"`
 	LastLoginIP string         `json:"lastLoginIp,omitempty" gorm:"size:45"`
 	CreatedAt   time.Time      `json:"createdAt"`
