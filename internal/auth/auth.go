@@ -18,6 +18,12 @@ type loginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
+// authIdentity 是认证通过后写入 JWT 的身份信息。
+type authIdentity struct {
+	Username string
+	Role     string
+}
+
 // New 构建 JWT 认证中间件：仅校验数据库中的注册用户，数据库不可用时登录一律失败。
 func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 	secret := os.Getenv("JWT_SECRET")
@@ -31,8 +37,12 @@ func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 		MaxRefresh:  7 * 24 * time.Hour,
 		IdentityKey: "user",
 		PayloadFunc: func(data interface{}) jwt.MapClaims {
-			if user, ok := data.(string); ok {
-				return jwt.MapClaims{"user": user, "role": "customer"}
+			if ident, ok := data.(authIdentity); ok {
+				role := ident.Role
+				if role == "" {
+					role = model.RoleCustomer
+				}
+				return jwt.MapClaims{"user": ident.Username, "role": role}
 			}
 			return jwt.MapClaims{}
 		},
@@ -51,7 +61,11 @@ func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 			if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)) != nil {
 				return nil, jwt.ErrFailedAuthentication
 			}
-			return req.Username, nil
+			role := user.Role
+			if role == "" {
+				role = model.RoleCustomer
+			}
+			return authIdentity{Username: user.Username, Role: role}, nil
 		},
 		Unauthorized: func(c *gin.Context, code int, message string) {
 			c.JSON(code, gin.H{"code": code, "message": message})
