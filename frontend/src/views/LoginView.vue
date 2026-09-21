@@ -69,7 +69,7 @@ async function onSubmit() {
           <van-button round block type="danger" native-type="submit" :loading="loading">登录</van-button>
         </div>
       </van-form>
-      <p class="login-hint">默认账号 admin / 123456</p>
+      <p class="login-hint">请使用已注册的账号登录</p>
     </div>
   </div>
 </template>

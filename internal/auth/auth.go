@@ -18,7 +18,7 @@ type loginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-// New 构建 JWT 认证中间件：优先校验数据库中的注册用户，回退到环境变量配置的默认账号。
+// New 构建 JWT 认证中间件：仅校验数据库中的注册用户，数据库不可用时登录一律失败。
 func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
@@ -41,18 +41,14 @@ func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 			if err := c.ShouldBindJSON(&req); err != nil {
 				return nil, jwt.ErrMissingLoginValues
 			}
-			if db != nil {
-				var user model.User
-				if err := db.Where("username = ?", req.Username).First(&user).Error; err == nil {
-					if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)) == nil {
-						return req.Username, nil
-					}
-					return nil, jwt.ErrFailedAuthentication
-				}
+			if db == nil {
+				return nil, jwt.ErrFailedAuthentication
 			}
-			adminUser := envOr("SHOP_USER", "admin")
-			adminPassword := envOr("SHOP_PASSWORD", "123456")
-			if req.Username != adminUser || req.Password != adminPassword {
+			var user model.User
+			if err := db.Where("username = ?", req.Username).First(&user).Error; err != nil {
+				return nil, jwt.ErrFailedAuthentication
+			}
+			if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)) != nil {
 				return nil, jwt.ErrFailedAuthentication
 			}
 			return req.Username, nil
@@ -64,11 +60,4 @@ func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 			c.JSON(http.StatusOK, gin.H{"token": token, "expire": expire, "user": "customer"})
 		},
 	})
-}
-
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }
