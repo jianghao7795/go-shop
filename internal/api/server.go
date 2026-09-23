@@ -70,7 +70,8 @@ func Start() {
 
 	protected := router.Group("/api")
 	protected.Use(jwtMiddleware.MiddlewareFunc())
-	protected.GET("/me", meHandler)
+	protected.GET("/me", meHandler(db))
+	protected.PUT("/profile", updateProfile(db))
 	protected.GET("/addresses", listAddresses(db))
 	protected.POST("/addresses", createAddress(db))
 	protected.PUT("/addresses/:id", updateAddress(db))

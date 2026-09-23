@@ -26,9 +26,12 @@ function goOrders(status = "") {
   <div class="sub-page profile-page">
     <van-nav-bar title="个人中心" />
     <section class="profile-header">
-      <div class="avatar">👤</div>
+      <div class="avatar">
+        <img v-if="userStore.avatar" :src="userStore.avatar" alt="头像" />
+        <span v-else>👤</span>
+      </div>
       <div>
-        <h2>{{ userStore.isLoggedIn ? userStore.username : "优选用户" }}</h2>
+        <h2>{{ userStore.isLoggedIn ? userStore.displayName : "优选用户" }}</h2>
         <p>
           {{ userStore.isLoggedIn ? "欢迎回来" : "登录后享受更多会员权益" }}
         </p>
@@ -73,6 +76,12 @@ function goOrders(status = "") {
     </van-cell-group>
     <van-cell-group inset class="profile-tools">
       <van-cell
+        title="编辑资料"
+        icon="edit"
+        is-link
+        @click="router.push('/profile/edit')"
+      />
+      <van-cell
         title="优惠券"
         icon="coupon-o"
         is-link
@@ -107,3 +116,12 @@ function goOrders(status = "") {
     </van-cell-group>
   </div>
 </template>
+
+<style scoped>
+.profile-header .avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+</style>
