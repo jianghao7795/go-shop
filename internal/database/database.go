@@ -10,7 +10,7 @@ import (
 
 // DSN 返回连接目标数据库的 MySQL DSN，配置项均可通过环境变量覆盖。
 func DSN() string {
-	host := envOr("MYSQL_HOST", "192.168.59.161")
+	host := envOr("MYSQL_HOST", "192.168.57.47")
 	port := envOr("MYSQL_PORT", "3306")
 	user := envOr("MYSQL_USER", "root")
 	password := envOr("MYSQL_PASSWORD", "123456")
