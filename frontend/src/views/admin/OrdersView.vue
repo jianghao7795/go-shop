@@ -161,52 +161,9 @@ onMounted(load);
 </template>
 
 <style scoped>
-.admin-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.admin-head h2 {
-  margin: 0;
-  font-size: 20px;
-}
 .order-filter {
   margin-bottom: 12px;
   border-radius: 8px;
   overflow: hidden;
-}
-.admin-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-  border-radius: 8px;
-  overflow: hidden;
-}
-.admin-table th,
-.admin-table td {
-  padding: 10px 8px;
-  text-align: left;
-  font-size: 13px;
-  border-bottom: 1px solid #f2f3f5;
-  white-space: nowrap;
-}
-.admin-table th {
-  color: #969ba5;
-  font-weight: 500;
-  background: #fafafa;
-}
-.admin-ops {
-  display: flex;
-  gap: 6px;
-}
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 12px;
-  color: #646566;
-  font-size: 13px;
 }
 </style>

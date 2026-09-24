@@ -3,6 +3,7 @@ import { createPinia } from "pinia";
 import { WML } from "@wailsio/runtime";
 import { ActionBar, ActionBarButton, ActionBarIcon, Badge, Button, Card, Cascader, Cell, CellGroup, Checkbox, CouponCell, CouponList, Empty, Field, Form, Grid, GridItem, Loading, NavBar, Popup, Search, Sidebar, SidebarItem, Stepper, Swipe, SwipeCell, SwipeItem, Tab, Tabbar, TabbarItem, Tabs } from "vant";
 import "vant/lib/index.css";
+import "./assets/admin.css";
 import App from "./App.vue";
 import router from "./router";
 

@@ -1,0 +1,172 @@
+/* 管理后台全局样式 */
+
+/* —— 布局 —— */
+.admin-layout {
+  display: flex;
+  min-height: 100vh;
+  background: #f5f6f8;
+}
+
+.admin-sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  background: #1f2430;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0;
+}
+
+.admin-brand {
+  padding: 0 20px 24px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.admin-sidebar a {
+  display: block;
+  padding: 13px 20px;
+  color: #c4c9d4;
+  text-decoration: none;
+  font-size: 14px;
+  border-left: 3px solid transparent;
+  transition: background 0.15s, color 0.15s;
+}
+
+.admin-sidebar a:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.admin-sidebar a.router-link-active {
+  color: #fff;
+  background: rgba(255, 77, 103, 0.15);
+  border-left-color: #ff4d67;
+}
+
+.admin-main {
+  flex: 1;
+  min-width: 0;
+  padding: 24px 28px;
+}
+
+/* —— 页面通用 —— */
+.admin-page {
+  max-width: 1080px;
+}
+
+.admin-page > h2 {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2430;
+}
+
+.admin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.admin-head h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2430;
+}
+
+/* —— 表格 —— */
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 13px 12px;
+  text-align: left;
+  font-size: 13px;
+  border-bottom: 1px solid #f0f1f4;
+  white-space: nowrap;
+}
+
+.admin-table th {
+  color: #8a919f;
+  font-weight: 500;
+  background: #fafbfc;
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-table tbody tr:hover {
+  background: #fafbfd;
+}
+
+.admin-ops {
+  display: flex;
+  gap: 8px;
+}
+
+/* —— 分页 —— */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+  color: #646a73;
+  font-size: 13px;
+}
+
+/* —— 表单弹窗 —— */
+.form-popup {
+  padding: 20px 20px 28px;
+  min-width: 320px;
+}
+
+.form-popup h3 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+  color: #1f2430;
+}
+
+.form-actions {
+  margin-top: 20px;
+}
+
+/* —— 概览统计 —— */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.stat-tile {
+  background: #fff;
+  border-radius: 10px;
+  padding: 24px 16px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: #ff4d67;
+  line-height: 1;
+}
+
+.stat-label {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #8a919f;
+}

@@ -52,14 +52,3 @@ onMounted(load);
   </div>
 </template>
 
-<style scoped>
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 12px;
-  color: #646566;
-  font-size: 13px;
-}
-</style>

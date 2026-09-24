@@ -15,9 +15,9 @@ async function load() {
       http.get("/api/admin/orders"),
       http.get("/api/admin/users"),
     ]);
-    counts.value.products = products.data.length;
-    counts.value.orders = orders.data.length;
-    counts.value.users = users.data.length;
+    counts.value.products = products.data.total;
+    counts.value.orders = orders.data.total;
+    counts.value.users = users.data.total;
   } catch {
     /* 统计加载失败时保留 0 */
   }
@@ -46,26 +46,3 @@ onMounted(load);
   </div>
 </template>
 
-<style scoped>
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-.stat-tile {
-  background: #fff;
-  border-radius: 8px;
-  padding: 20px 12px;
-  text-align: center;
-}
-.stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: #ff4d67;
-}
-.stat-label {
-  margin-top: 6px;
-  font-size: 13px;
-  color: #969ba5;
-}
-</style>
