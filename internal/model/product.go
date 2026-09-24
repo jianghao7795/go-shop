@@ -17,6 +17,7 @@ type Product struct {
 	Emoji         string         `json:"emoji"`
 	Color         string         `json:"color"`
 	Category      string         `json:"category"`
+	OnShelf       bool           `json:"onShelf" gorm:"default:true"`
 	CreatedAt     time.Time      `json:"createdAt"`
 	UpdatedAt     time.Time      `json:"updatedAt"`
 	DeletedAt     gorm.DeletedAt `json:"-"`
