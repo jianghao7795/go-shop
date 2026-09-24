@@ -95,6 +95,10 @@ func Start() {
 	admin.POST("/products", adminCreateProduct(db))
 	admin.PUT("/products/:id", adminUpdateProduct(db))
 	admin.DELETE("/products/:id", adminDeleteProduct(db))
+	admin.GET("/categories", adminListCategories(db))
+	admin.POST("/categories", adminCreateCategory(db))
+	admin.PUT("/categories/:id", adminUpdateCategory(db))
+	admin.DELETE("/categories/:id", adminDeleteCategory(db))
 
 	router.GET("/api/health", healthHandler(databaseReady))
 	router.GET("/api/categories", listCategories(db, databaseReady))

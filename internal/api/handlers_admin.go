@@ -172,3 +172,114 @@ func adminDeleteProduct(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 	}
 }
+
+type categoryPayload struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+	Icon string `json:"icon"`
+	Note string `json:"note"`
+}
+
+func validateCategory(p categoryPayload) string {
+	if strings.TrimSpace(p.Key) == "" || strings.TrimSpace(p.Name) == "" {
+		return "分类 key 和名称不能为空"
+	}
+	return ""
+}
+
+func adminListCategories(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		var items []model.Category
+		if err := db.Order("id DESC").Find(&items).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "查询失败"})
+			return
+		}
+		c.JSON(http.StatusOK, items)
+	}
+}
+
+func adminCreateCategory(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var p categoryPayload
+		if err := c.ShouldBindJSON(&p); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "请求格式错误"})
+			return
+		}
+		if msg := validateCategory(p); msg != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		var existing model.Category
+		if err := db.Where("key = ?", p.Key).First(&existing).Error; err == nil {
+			c.JSON(http.StatusConflict, gin.H{"message": "分类 key 已存在"})
+			return
+		}
+		item := model.Category{Key: p.Key, Name: p.Name, Icon: p.Icon, Note: p.Note}
+		if err := db.Create(&item).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "创建失败"})
+			return
+		}
+		c.JSON(http.StatusOK, item)
+	}
+}
+
+func adminUpdateCategory(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "非法分类 ID"})
+			return
+		}
+		var p categoryPayload
+		if err := c.ShouldBindJSON(&p); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "请求格式错误"})
+			return
+		}
+		if msg := validateCategory(p); msg != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		var existing model.Category
+		if err := db.Where("key = ? AND id != ?", p.Key, id).First(&existing).Error; err == nil {
+			c.JSON(http.StatusConflict, gin.H{"message": "分类 key 已存在"})
+			return
+		}
+		updates := map[string]any{"key": p.Key, "name": p.Name, "icon": p.Icon, "note": p.Note}
+		if err := db.Model(&model.Category{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
+	}
+}
+
+func adminDeleteCategory(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "非法分类 ID"})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		if err := db.Delete(&model.Category{}, id).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "删除失败"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+	}
+}
