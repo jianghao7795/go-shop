@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from "vue";
 import { showConfirmDialog, showToast } from "vant";
 import http from "../../lib/http";
+import { errMsg } from "../../lib/errmsg";
 
 interface Coupon {
   id: number;
@@ -96,8 +97,8 @@ async function submit() {
     showToast("已保存");
     showForm.value = false;
     load();
-  } catch {
-    showToast("保存失败");
+  } catch (err) {
+    showToast(errMsg(err, "保存失败"));
   } finally {
     saving.value = false;
   }
@@ -116,8 +117,8 @@ async function remove(c: Coupon) {
     await http.delete("/api/admin/coupons/" + c.id);
     showToast("已删除");
     load();
-  } catch {
-    showToast("删除失败");
+  } catch (err) {
+    showToast(errMsg(err, "删除失败"));
   }
 }
 

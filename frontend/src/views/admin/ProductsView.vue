@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { Picker, showConfirmDialog, showToast, Switch } from "vant";
 import http from "../../lib/http";
+import { errMsg } from "../../lib/errmsg";
 
 interface Product {
   id: number;
@@ -133,8 +134,8 @@ async function submit() {
     showToast("已保存");
     showForm.value = false;
     load();
-  } catch {
-    showToast("保存失败");
+  } catch (err) {
+    showToast(errMsg(err, "保存失败"));
   } finally {
     saving.value = false;
   }
@@ -155,8 +156,8 @@ async function toggleShelf(p: Product) {
     });
     p.onShelf = next;
     showToast(next ? "已上架" : "已下架");
-  } catch {
-    showToast("操作失败");
+  } catch (err) {
+    showToast(errMsg(err, "操作失败"));
   }
 }
 
@@ -173,8 +174,8 @@ async function remove(p: Product) {
     await http.delete("/api/admin/products/" + p.id);
     showToast("已删除");
     load();
-  } catch {
-    showToast("删除失败");
+  } catch (err) {
+    showToast(errMsg(err, "删除失败"));
   }
 }
 

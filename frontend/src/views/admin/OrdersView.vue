@@ -2,6 +2,7 @@
 import { onMounted, ref } from "vue";
 import { DropdownItem, DropdownMenu, Picker, showToast } from "vant";
 import http from "../../lib/http";
+import { errMsg } from "../../lib/errmsg";
 
 interface Order {
   id: number;
@@ -85,8 +86,8 @@ async function changeStatus(o: Order, target: string) {
     await http.put("/api/admin/orders/" + o.id + "/status", { status: target });
     showToast("已更新");
     load();
-  } catch {
-    showToast("更新失败");
+  } catch (err) {
+    showToast(errMsg(err, "更新失败"));
   }
 }
 

@@ -2,6 +2,7 @@
 import { reactive, ref } from "vue";
 import { showToast } from "vant";
 import http from "../../lib/http";
+import { errMsg } from "../../lib/errmsg";
 
 const sending = ref(false);
 
@@ -30,8 +31,8 @@ async function send() {
     showToast("已发送");
     form.title = "";
     form.content = "";
-  } catch {
-    showToast("发送失败");
+  } catch (err) {
+    showToast(errMsg(err, "发送失败"));
   } finally {
     sending.value = false;
   }
