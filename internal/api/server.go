@@ -89,6 +89,8 @@ func Start() {
 
 	admin := router.Group("/api/admin")
 	admin.Use(jwtMiddleware.MiddlewareFunc(), adminRequired())
+	admin.GET("/users", adminListUsers(db))
+	admin.PUT("/users/:id/status", adminUpdateUserStatus(db))
 
 	router.GET("/api/health", healthHandler(databaseReady))
 	router.GET("/api/categories", listCategories(db, databaseReady))
