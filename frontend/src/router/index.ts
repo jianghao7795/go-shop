@@ -24,7 +24,7 @@ const router = createRouter({
     {
       path: "/admin",
       component: () => import("../layouts/AdminLayout.vue"),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, hideTabbar: true },
       children: [
         { path: "", name: "admin-dashboard", component: () => import("../views/admin/DashboardView.vue"), meta: { title: "概览" } },
         { path: "users", name: "admin-users", component: () => import("../views/admin/UsersView.vue"), meta: { title: "用户管理" } },

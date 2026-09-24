@@ -38,6 +38,7 @@ async function onSubmit() {
       localStorage.removeItem(REMEMBER_KEY);
     }
     userStore.setAuth(res.data.token, username.value);
+    await userStore.validate();
     showToast("登录成功");
     router.replace(String(route.query.redirect || "/profile"));
   } catch (err) {
