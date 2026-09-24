@@ -47,6 +47,10 @@ func adminUpdateUserStatus(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
 			return
 		}
+		if err := db.First(&model.User{}, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "用户不存在"})
+			return
+		}
 		if err := db.Model(&model.User{}).Where("id = ?", id).Update("status", req.Status).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
 			return
@@ -147,6 +151,10 @@ func adminUpdateProduct(db *gorm.DB) gin.HandlerFunc {
 		if p.OnShelf != nil {
 			updates["on_shelf"] = *p.OnShelf
 		}
+		if err := db.First(&model.Product{}, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "商品不存在"})
+			return
+		}
 		if err := db.Model(&model.Product{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
 			return
@@ -166,8 +174,13 @@ func adminDeleteProduct(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
 			return
 		}
-		if err := db.Delete(&model.Product{}, id).Error; err != nil {
+		res := db.Delete(&model.Product{}, id)
+		if res.Error != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "删除失败"})
+			return
+		}
+		if res.RowsAffected == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"message": "商品不存在"})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
@@ -258,6 +271,10 @@ func adminUpdateCategory(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		updates := map[string]any{"key": p.Key, "name": p.Name, "icon": p.Icon, "note": p.Note}
+		if err := db.First(&model.Category{}, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "分类不存在"})
+			return
+		}
 		if err := db.Model(&model.Category{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
 			return
@@ -277,8 +294,13 @@ func adminDeleteCategory(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
 			return
 		}
-		if err := db.Delete(&model.Category{}, id).Error; err != nil {
+		res := db.Delete(&model.Category{}, id)
+		if res.Error != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "删除失败"})
+			return
+		}
+		if res.RowsAffected == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"message": "分类不存在"})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
@@ -499,6 +521,10 @@ func adminUpdateCoupon(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		updates := map[string]any{"title": p.Title, "amount": p.Amount, "min_amount": p.MinAmount, "condition": p.Condition, "start_at": startAt, "end_at": endAt}
+		if err := db.First(&model.Coupon{}, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "优惠券不存在"})
+			return
+		}
 		if err := db.Model(&model.Coupon{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
 			return
@@ -518,8 +544,13 @@ func adminDeleteCoupon(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
 			return
 		}
-		if err := db.Delete(&model.Coupon{}, id).Error; err != nil {
+		res := db.Delete(&model.Coupon{}, id)
+		if res.Error != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "删除失败"})
+			return
+		}
+		if res.RowsAffected == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"message": "优惠券不存在"})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
