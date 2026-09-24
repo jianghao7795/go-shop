@@ -509,3 +509,35 @@ func adminDeleteCoupon(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 	}
 }
+
+// adminSendNotification 给指定用户（或全体）发送站内通知。
+func adminSendNotification(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req struct {
+			Username string `json:"username"` // 空 = 广播给所有人
+			Title    string `json:"title"`
+			Content  string `json:"content"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Title) == "" || strings.TrimSpace(req.Content) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "标题和内容不能为空"})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		if req.Username != "" {
+			notify(db, hub, req.Username, model.NotificationTypeCoupon, req.Title, req.Content, "")
+		} else {
+			var users []model.User
+			if err := db.Find(&users).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "查询失败"})
+				return
+			}
+			for _, u := range users {
+				notify(db, hub, u.Username, model.NotificationTypeCoupon, req.Title, req.Content, "")
+			}
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "已发送"})
+	}
+}
