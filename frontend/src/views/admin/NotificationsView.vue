@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { reactive, ref } from "vue";
-import { showToast } from "vant";
+import { showToast, Switch } from "vant";
 import http from "../../lib/http";
 import { errMsg } from "../../lib/errmsg";
 
 const sending = ref(false);
+const random = ref(false);
 
 const form = reactive({
   username: "",
@@ -27,8 +28,9 @@ async function send() {
       username: form.username.trim(),
       title: form.title,
       content: form.content,
+      random: random.value,
     });
-    showToast("已发送");
+    showToast(random.value ? "已提交后台，将随机发送" : "已发送");
     form.title = "";
     form.content = "";
   } catch (err) {
@@ -57,6 +59,11 @@ async function send() {
         autosize
         placeholder="通知内容"
       />
+      <van-field label="后台随机发送">
+        <template #input>
+          <Switch v-model="random" />
+        </template>
+      </van-field>
       <div class="notify-actions">
         <van-button block type="primary" :loading="sending" @click="send">
           发送

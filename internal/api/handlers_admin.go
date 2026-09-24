@@ -1,6 +1,7 @@
 package api
 
 import (
+	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -600,13 +601,14 @@ func adminDeleteCoupon(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// adminSendNotification 给指定用户（或全体）发送站内通知。
+// adminSendNotification 给指定用户（或全体）发送站内通知；random 为 true 时由后台随机延时后发送。
 func adminSendNotification(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
 			Username string `json:"username"` // 空 = 广播给所有人
 			Title    string `json:"title"`
 			Content  string `json:"content"`
+			Random   bool   `json:"random"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Title) == "" || strings.TrimSpace(req.Content) == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "标题和内容不能为空"})
@@ -623,17 +625,30 @@ func adminSendNotification(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
 				c.JSON(http.StatusNotFound, gin.H{"message": "用户不存在"})
 				return
 			}
-			notify(db, hub, username, model.NotificationTypeCoupon, req.Title, req.Content, "")
-		} else {
+		}
+
+		send := func() {
+			if username != "" {
+				notify(db, hub, username, model.NotificationTypeCoupon, req.Title, req.Content, "")
+				return
+			}
 			var users []model.User
 			if err := db.Find(&users).Error; err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"message": "查询失败"})
 				return
 			}
 			for _, u := range users {
 				notify(db, hub, u.Username, model.NotificationTypeCoupon, req.Title, req.Content, "")
 			}
 		}
+
+		if req.Random {
+			// 随机延时 30 秒 ~ 10 分钟后发送
+			delay := time.Duration(30+rand.Intn(571)) * time.Second
+			time.AfterFunc(delay, send)
+			c.JSON(http.StatusOK, gin.H{"message": "已提交后台，将随机发送"})
+			return
+		}
+		send()
 		c.JSON(http.StatusOK, gin.H{"message": "已发送"})
 	}
 }
