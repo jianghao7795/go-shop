@@ -46,6 +46,7 @@ const { add: addToCartItem } = useShopCart();
 const loading = ref(false);
 const loadError = ref("");
 const products = ref<Product[]>([]);
+const featured = ref<Product[]>([]);
 
 async function loadProducts() {
   loading.value = true;
@@ -64,6 +65,16 @@ async function loadProducts() {
     loadError.value = "商品服务暂不可用，请确认 Gin 和 MySQL 已启动";
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadFeatured() {
+  try {
+    const res = await http.get("/api/products");
+    const data = res.data as Product[];
+    featured.value = [...data].sort((a, b) => b.sales - a.sales).slice(0, 6);
+  } catch {
+    /* 优选好物加载失败时保持为空 */
   }
 }
 
@@ -91,6 +102,7 @@ watch(activeCategory, loadProducts);
 onMounted(() => {
   loadCategories();
   loadProducts();
+  loadFeatured();
 });
 </script>
 
@@ -145,6 +157,28 @@ onMounted(() => {
       </van-grid>
 
       <div class="section-heading">
+        <h2>优选好物</h2>
+        <span>销量精选</span>
+      </div>
+      <div class="featured-scroll">
+        <article
+          v-for="p in featured"
+          :key="p.id"
+          class="featured-card"
+          @click="$router.push(`/product/${p.id}`)"
+        >
+          <div class="featured-thumb" :style="{ background: p.color }">
+            {{ p.emoji }}
+          </div>
+          <h3>{{ p.name }}</h3>
+          <div class="featured-meta">
+            <span class="featured-price">¥{{ p.price.toFixed(2) }}</span>
+            <span class="featured-sales">已售 {{ p.sales }}</span>
+          </div>
+        </article>
+      </div>
+
+      <div class="section-heading">
         <h2>猜你喜欢</h2>
         <span>实时更新</span>
       </div>
@@ -195,3 +229,54 @@ onMounted(() => {
     </main>
   </div>
 </template>
+
+<style scoped>
+.featured-scroll {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.featured-scroll::-webkit-scrollbar {
+  display: none;
+}
+.featured-card {
+  flex: 0 0 132px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(28, 35, 50, 0.06);
+}
+.featured-thumb {
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  line-height: 1;
+}
+.featured-card h3 {
+  margin: 0;
+  padding: 8px 10px 0;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.featured-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 4px 10px 10px;
+}
+.featured-price {
+  color: #f43f5e;
+  font-weight: 700;
+  font-size: 14px;
+}
+.featured-sales {
+  color: #969ba5;
+  font-size: 11px;
+}
+</style>
