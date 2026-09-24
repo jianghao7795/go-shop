@@ -87,6 +87,9 @@ func Start() {
 	protected.PUT("/notifications/read-all", markAllNotificationsRead(db))
 	protected.PUT("/notifications/:id/read", markNotificationRead(db))
 
+	admin := router.Group("/api/admin")
+	admin.Use(jwtMiddleware.MiddlewareFunc(), adminRequired())
+
 	router.GET("/api/health", healthHandler(databaseReady))
 	router.GET("/api/categories", listCategories(db, databaseReady))
 	router.GET("/api/products/:id", productDetailHandler(db, databaseReady))
