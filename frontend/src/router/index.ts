@@ -21,6 +21,20 @@ const router = createRouter({
     { path: "/coupons", name: "coupons", component: () => import("../views/CouponView.vue"), meta: { title: "优惠券", hideTabbar: true, requiresAuth: true } },
     { path: "/service", name: "service", component: () => import("../views/ServiceView.vue"), meta: { title: "客服与帮助", hideTabbar: true, requiresAuth: true } },
     { path: "/notifications", name: "notifications", component: () => import("../views/NotificationsView.vue"), meta: { title: "消息通知", hideTabbar: true, requiresAuth: true } },
+    {
+      path: "/admin",
+      component: () => import("../layouts/AdminLayout.vue"),
+      meta: { requiresAuth: true },
+      children: [
+        { path: "", name: "admin-dashboard", component: () => import("../views/admin/DashboardView.vue"), meta: { title: "概览" } },
+        { path: "users", name: "admin-users", component: () => import("../views/admin/UsersView.vue"), meta: { title: "用户管理" } },
+        { path: "products", name: "admin-products", component: () => import("../views/admin/ProductsView.vue"), meta: { title: "商品管理" } },
+        { path: "categories", name: "admin-categories", component: () => import("../views/admin/CategoriesView.vue"), meta: { title: "分类管理" } },
+        { path: "orders", name: "admin-orders", component: () => import("../views/admin/OrdersView.vue"), meta: { title: "订单管理" } },
+        { path: "coupons", name: "admin-coupons", component: () => import("../views/admin/CouponsView.vue"), meta: { title: "优惠券管理" } },
+        { path: "notifications", name: "admin-notifications", component: () => import("../views/admin/NotificationsView.vue"), meta: { title: "通知管理" } },
+      ],
+    },
     { path: "/:pathMatch(.*)*", redirect: { name: "home" } },
   ],
 });
