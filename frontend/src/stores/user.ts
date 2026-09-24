@@ -20,6 +20,7 @@ export const useUserStore = defineStore("user", () => {
   const avatar = ref("");
   const mobile = ref("");
   const email = ref("");
+  const role = ref("");
   const isLoggedIn = computed(() => !!token.value);
   const displayName = computed(() => nickname.value || username.value);
 
@@ -29,6 +30,7 @@ export const useUserStore = defineStore("user", () => {
     avatar.value = p.avatar || "";
     mobile.value = p.mobile || "";
     email.value = p.email || "";
+    role.value = p.role || "customer";
   }
 
   function setAuth(newToken: string, name: string) {
@@ -45,6 +47,7 @@ export const useUserStore = defineStore("user", () => {
     avatar.value = "";
     mobile.value = "";
     email.value = "";
+    role.value = "";
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
   }
@@ -65,5 +68,5 @@ export const useUserStore = defineStore("user", () => {
     applyProfile(res.data);
   }
 
-  return { token, username, nickname, avatar, mobile, email, isLoggedIn, displayName, setAuth, logout, validate, saveProfile };
+  return { token, username, nickname, avatar, mobile, email, role, isLoggedIn, displayName, setAuth, logout, validate, saveProfile };
 });
