@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { DropdownItem, DropdownMenu, Picker, showToast } from "vant";
 import http from "../../lib/http";
 import { errMsg } from "../../lib/errmsg";
@@ -35,6 +35,10 @@ const STATUS_MAP: Record<string, string> = STATUSES.reduce(
 );
 
 const list = ref<Order[]>([]);
+const total = ref(0);
+const page = ref(1);
+const pageSize = 20;
+const totalPages = computed(() => Math.ceil(total.value / pageSize));
 const loading = ref(false);
 const status = ref("");
 const showStatusPicker = ref(false);
@@ -65,14 +69,20 @@ async function load() {
   loading.value = true;
   try {
     const res = await http.get("/api/admin/orders", {
-      params: status.value ? { status: status.value } : {},
+      params: { status: status.value || undefined, page: page.value, pageSize },
     });
-    list.value = res.data;
+    list.value = res.data.items;
+    total.value = res.data.total;
   } catch {
     showToast("加载失败");
   } finally {
     loading.value = false;
   }
+}
+
+function changePage(p: number) {
+  page.value = p;
+  load();
 }
 
 function openStatus(o: Order) {
@@ -133,6 +143,12 @@ onMounted(load);
       </tbody>
     </table>
 
+    <div class="pagination" v-if="totalPages > 1">
+      <van-button size="small" :disabled="page <= 1" @click="changePage(page - 1)">上一页</van-button>
+      <span>{{ page }} / {{ totalPages }}（共 {{ total }} 条）</span>
+      <van-button size="small" :disabled="page >= totalPages" @click="changePage(page + 1)">下一页</van-button>
+    </div>
+
     <van-popup v-model:show="showStatusPicker" position="bottom" round>
       <Picker
         :columns="statusColumns"
@@ -183,5 +199,14 @@ onMounted(load);
 .admin-ops {
   display: flex;
   gap: 6px;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+  color: #646566;
+  font-size: 13px;
 }
 </style>

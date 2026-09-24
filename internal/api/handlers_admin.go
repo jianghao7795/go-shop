@@ -12,19 +12,38 @@ import (
 	"shop/internal/model"
 )
 
-// adminListUsers 返回全部用户（含昵称/手机号/角色/状态）。
+// parsePagination 解析分页参数，page 从 1 起，pageSize 上限 100。
+func parsePagination(c *gin.Context) (page, pageSize int) {
+	page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
+	if page < 1 {
+		page = 1
+	}
+	pageSize, _ = strconv.Atoi(c.DefaultQuery("pageSize", "20"))
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	return page, pageSize
+}
+
+// adminListUsers 分页返回全部用户（含昵称/手机号/角色/状态）。
 func adminListUsers(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if db == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
 			return
 		}
+		page, pageSize := parsePagination(c)
+		var total int64
+		db.Model(&model.User{}).Count(&total)
 		var users []model.User
-		if err := db.Order("id DESC").Find(&users).Error; err != nil {
+		if err := db.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&users).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "查询失败"})
 			return
 		}
-		c.JSON(http.StatusOK, users)
+		c.JSON(http.StatusOK, gin.H{"items": users, "total": total, "page": page, "pageSize": pageSize})
 	}
 }
 
@@ -94,12 +113,15 @@ func adminListProducts(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
 			return
 		}
+		page, pageSize := parsePagination(c)
+		var total int64
+		db.Model(&model.Product{}).Count(&total)
 		var items []model.Product
-		if err := db.Order("id DESC").Find(&items).Error; err != nil {
+		if err := db.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&items).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "查询失败"})
 			return
 		}
-		c.JSON(http.StatusOK, items)
+		c.JSON(http.StatusOK, gin.H{"items": items, "total": total, "page": page, "pageSize": pageSize})
 	}
 }
 
@@ -325,24 +347,27 @@ func adminDeleteCategory(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// adminListOrders 返回全部订单（可选 ?status= 过滤，无用户隔离）。
+// adminListOrders 分页返回全部订单（可选 ?status= 过滤，无用户隔离）。
 func adminListOrders(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if db == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
 			return
 		}
+		page, pageSize := parsePagination(c)
 		status := c.Query("status")
 		q := db.Model(&model.Order{})
 		if status != "" {
 			q = q.Where("status = ?", status)
 		}
+		var total int64
+		q.Count(&total)
 		var list []model.Order
-		if err := q.Order("id DESC").Find(&list).Error; err != nil {
+		if err := q.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "查询失败"})
 			return
 		}
-		c.JSON(http.StatusOK, list)
+		c.JSON(http.StatusOK, gin.H{"items": list, "total": total, "page": page, "pageSize": pageSize})
 	}
 }
 

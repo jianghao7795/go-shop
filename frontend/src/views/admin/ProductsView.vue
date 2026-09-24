@@ -26,6 +26,10 @@ interface Category {
 }
 
 const list = ref<Product[]>([]);
+const total = ref(0);
+const page = ref(1);
+const pageSize = 20;
+const totalPages = computed(() => Math.ceil(total.value / pageSize));
 const categories = ref<Category[]>([]);
 const loading = ref(false);
 const saving = ref(false);
@@ -61,13 +65,21 @@ const categoryLabel = computed(
 async function load() {
   loading.value = true;
   try {
-    const res = await http.get("/api/admin/products");
-    list.value = res.data;
+    const res = await http.get("/api/admin/products", {
+      params: { page: page.value, pageSize },
+    });
+    list.value = res.data.items;
+    total.value = res.data.total;
   } catch {
     showToast("加载失败");
   } finally {
     loading.value = false;
   }
+}
+
+function changePage(p: number) {
+  page.value = p;
+  load();
 }
 
 async function loadCategories() {
@@ -228,6 +240,12 @@ onMounted(() => {
       </tbody>
     </table>
 
+    <div class="pagination" v-if="totalPages > 1">
+      <van-button size="small" :disabled="page <= 1" @click="changePage(page - 1)">上一页</van-button>
+      <span>{{ page }} / {{ totalPages }}（共 {{ total }} 条）</span>
+      <van-button size="small" :disabled="page >= totalPages" @click="changePage(page + 1)">下一页</van-button>
+    </div>
+
     <van-popup v-model:show="showForm" position="bottom" round>
       <div class="form-popup">
         <h3>{{ editingId ? "编辑商品" : "新建商品" }}</h3>
@@ -317,5 +335,14 @@ onMounted(() => {
 }
 .form-actions {
   margin-top: 16px;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+  color: #646566;
+  font-size: 13px;
 }
 </style>
