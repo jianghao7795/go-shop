@@ -32,6 +32,10 @@ func productDetailHandler(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"message": "product not found"})
 			return
 		}
+		if !item.OnShelf {
+			c.JSON(http.StatusNotFound, gin.H{"message": "product not found"})
+			return
+		}
 		c.JSON(http.StatusOK, item)
 	}
 }
@@ -45,7 +49,7 @@ func productsHandler(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
 		search := c.Query("search")
 		category := c.Query("category")
 		hasFilter := search != "" || (category != "" && category != "all")
-		query := db.Model(&model.Product{})
+		query := db.Model(&model.Product{}).Where("on_shelf = ?", true)
 		if search != "" {
 			query = query.Where("name LIKE ?", "%"+search+"%")
 		}
@@ -57,7 +61,12 @@ func productsHandler(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
 			items = nil
 		}
 		if len(items) == 0 && !hasFilter {
-			items = model.FallbackProducts
+			// 仅在商品表确实为空时才回退到内置目录，避免「全部下架」时误返回兜底数据
+			var total int64
+			db.Model(&model.Product{}).Count(&total)
+			if total == 0 {
+				items = model.FallbackProducts
+			}
 		}
 		c.JSON(http.StatusOK, items)
 	}
