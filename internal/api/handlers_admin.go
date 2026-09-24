@@ -93,6 +93,7 @@ type productPayload struct {
 	Color         string  `json:"color"`
 	Category      string  `json:"category"`
 	OnShelf       *bool   `json:"onShelf"`
+	Featured      *bool   `json:"featured"`
 }
 
 func validateProduct(p productPayload) string {
@@ -147,6 +148,9 @@ func adminCreateProduct(db *gorm.DB) gin.HandlerFunc {
 		} else {
 			item.OnShelf = true
 		}
+		if p.Featured != nil {
+			item.Featured = *p.Featured
+		}
 		if err := db.Create(&item).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "创建失败"})
 			return
@@ -178,6 +182,9 @@ func adminUpdateProduct(db *gorm.DB) gin.HandlerFunc {
 		updates := map[string]any{"name": p.Name, "description": p.Description, "price": p.Price, "original_price": p.OriginalPrice, "emoji": p.Emoji, "color": p.Color, "category": p.Category}
 		if p.OnShelf != nil {
 			updates["on_shelf"] = *p.OnShelf
+		}
+		if p.Featured != nil {
+			updates["featured"] = *p.Featured
 		}
 		if err := db.First(&model.Product{}, id).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"message": "商品不存在"})
@@ -212,6 +219,37 @@ func adminDeleteProduct(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+	}
+}
+
+// adminToggleFeatured 切换商品「优选好物」标记。
+func adminToggleFeatured(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "非法商品 ID"})
+			return
+		}
+		var req struct {
+			Featured bool `json:"featured"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "请求格式错误"})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		if err := db.First(&model.Product{}, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "商品不存在"})
+			return
+		}
+		if err := db.Model(&model.Product{}).Where("id = ?", id).Update("featured", req.Featured).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "已更新"})
 	}
 }
 

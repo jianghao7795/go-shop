@@ -18,6 +18,7 @@ type Product struct {
 	Color         string         `json:"color"`
 	Category      string         `json:"category"`
 	OnShelf       bool           `json:"onShelf" gorm:"default:true"`
+	Featured      bool           `json:"featured" gorm:"default:false"`
 	CreatedAt     time.Time      `json:"createdAt"`
 	UpdatedAt     time.Time      `json:"updatedAt"`
 	DeletedAt     gorm.DeletedAt `json:"-"`

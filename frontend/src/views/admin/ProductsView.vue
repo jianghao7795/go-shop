@@ -15,6 +15,7 @@ interface Product {
   color: string;
   category: string;
   onShelf: boolean;
+  featured: boolean;
 }
 
 interface Category {
@@ -46,6 +47,7 @@ const form = reactive({
   color: "",
   category: "",
   onShelf: true,
+  featured: false,
 });
 
 const categoryNames = computed(() => {
@@ -102,6 +104,7 @@ function openCreate() {
     color: "",
     category: "",
     onShelf: true,
+    featured: false,
   });
   showForm.value = true;
 }
@@ -117,6 +120,7 @@ function openEdit(p: Product) {
     color: p.color,
     category: p.category,
     onShelf: p.onShelf,
+    featured: p.featured,
   });
   showForm.value = true;
 }
@@ -131,6 +135,7 @@ function buildBody(onShelf: boolean) {
     color: form.color,
     category: form.category,
     onShelf,
+    featured: form.featured,
   };
 }
 
@@ -168,6 +173,17 @@ async function toggleShelf(p: Product) {
     });
     p.onShelf = next;
     showToast(next ? "已上架" : "已下架");
+  } catch (err) {
+    showToast(errMsg(err, "操作失败"));
+  }
+}
+
+async function toggleFeatured(p: Product) {
+  const next = !p.featured;
+  try {
+    await http.put("/api/admin/products/" + p.id + "/featured", { featured: next });
+    p.featured = next;
+    showToast(next ? "已设为优选" : "已取消优选");
   } catch (err) {
     showToast(errMsg(err, "操作失败"));
   }
@@ -215,7 +231,7 @@ onMounted(() => {
       <thead>
         <tr>
           <th>ID</th><th>名称</th><th>价格</th><th>原价</th>
-          <th>分类</th><th>上架</th><th>操作</th>
+          <th>分类</th><th>上架</th><th>优选</th><th>操作</th>
         </tr>
       </thead>
       <tbody>
@@ -230,6 +246,13 @@ onMounted(() => {
               :model-value="p.onShelf"
               size="20"
               @update:model-value="toggleShelf(p)"
+            />
+          </td>
+          <td>
+            <Switch
+              :model-value="p.featured"
+              size="20"
+              @update:model-value="toggleFeatured(p)"
             />
           </td>
           <td class="admin-ops">
@@ -272,6 +295,9 @@ onMounted(() => {
         />
         <van-field label="上架">
           <template #input><Switch v-model="form.onShelf" /></template>
+        </van-field>
+        <van-field label="优选好物">
+          <template #input><Switch v-model="form.featured" /></template>
         </van-field>
         <div class="form-actions">
           <van-button block type="primary" :loading="saving" @click="submit">保存</van-button>

@@ -48,8 +48,12 @@ func productsHandler(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
 		}
 		search := c.Query("search")
 		category := c.Query("category")
-		hasFilter := search != "" || (category != "" && category != "all")
+		featured := c.Query("featured") == "true"
+		hasFilter := search != "" || (category != "" && category != "all") || featured
 		query := db.Model(&model.Product{}).Where("on_shelf = ?", true)
+		if featured {
+			query = query.Where("featured = ?", true)
+		}
 		if search != "" {
 			query = query.Where("name LIKE ?", "%"+search+"%")
 		}
@@ -57,7 +61,11 @@ func productsHandler(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
 			query = query.Where("category = ?", category)
 		}
 		var items []model.Product
-		if err := query.Order("id DESC").Find(&items).Error; err != nil {
+		order := "id DESC"
+		if featured {
+			order = "sales DESC"
+		}
+		if err := query.Order(order).Find(&items).Error; err != nil {
 			items = nil
 		}
 		if len(items) == 0 && !hasFilter {

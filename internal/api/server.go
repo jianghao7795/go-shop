@@ -95,6 +95,7 @@ func Start() {
 	admin.POST("/products", adminCreateProduct(db))
 	admin.PUT("/products/:id", adminUpdateProduct(db))
 	admin.DELETE("/products/:id", adminDeleteProduct(db))
+	admin.PUT("/products/:id/featured", adminToggleFeatured(db))
 	admin.GET("/categories", adminListCategories(db))
 	admin.POST("/categories", adminCreateCategory(db))
 	admin.PUT("/categories/:id", adminUpdateCategory(db))

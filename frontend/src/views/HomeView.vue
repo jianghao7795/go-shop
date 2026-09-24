@@ -70,9 +70,8 @@ async function loadProducts() {
 
 async function loadFeatured() {
   try {
-    const res = await http.get("/api/products");
-    const data = res.data as Product[];
-    featured.value = [...data].sort((a, b) => b.sales - a.sales).slice(0, 6);
+    const res = await http.get("/api/products", { params: { featured: "true" } });
+    featured.value = res.data as Product[];
   } catch {
     /* 优选好物加载失败时保持为空 */
   }
