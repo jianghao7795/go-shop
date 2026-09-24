@@ -47,8 +47,13 @@ func adminUpdateUserStatus(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
 			return
 		}
-		if err := db.First(&model.User{}, id).Error; err != nil {
+		var target model.User
+		if err := db.First(&target, id).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"message": "用户不存在"})
+			return
+		}
+		if req.Status == 0 && target.Role == model.RoleAdmin {
+			c.JSON(http.StatusForbidden, gin.H{"message": "不能禁用管理员账号"})
 			return
 		}
 		if err := db.Model(&model.User{}).Where("id = ?", id).Update("status", req.Status).Error; err != nil {
@@ -201,6 +206,11 @@ func validateCategory(p categoryPayload) string {
 	return ""
 }
 
+// isDuplicateKey 判断错误是否为数据库唯一键冲突（MySQL 1062）。
+func isDuplicateKey(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "Duplicate entry")
+}
+
 func adminListCategories(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if db == nil {
@@ -238,6 +248,10 @@ func adminCreateCategory(db *gorm.DB) gin.HandlerFunc {
 		}
 		item := model.Category{Key: p.Key, Name: p.Name, Icon: p.Icon, Note: p.Note}
 		if err := db.Create(&item).Error; err != nil {
+			if isDuplicateKey(err) {
+				c.JSON(http.StatusConflict, gin.H{"message": "分类 key 已存在"})
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "创建失败"})
 			return
 		}
@@ -276,6 +290,10 @@ func adminUpdateCategory(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		if err := db.Model(&model.Category{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+			if isDuplicateKey(err) {
+				c.JSON(http.StatusConflict, gin.H{"message": "分类 key 已存在"})
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
 			return
 		}
@@ -573,8 +591,14 @@ func adminSendNotification(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
 			return
 		}
-		if req.Username != "" {
-			notify(db, hub, req.Username, model.NotificationTypeCoupon, req.Title, req.Content, "")
+		username := strings.TrimSpace(req.Username)
+		if username != "" {
+			var u model.User
+			if err := db.Where("username = ?", username).First(&u).Error; err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"message": "用户不存在"})
+				return
+			}
+			notify(db, hub, username, model.NotificationTypeCoupon, req.Title, req.Content, "")
 		} else {
 			var users []model.User
 			if err := db.Find(&users).Error; err != nil {
