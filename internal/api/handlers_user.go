@@ -123,6 +123,15 @@ func updateProfile(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		username := currentUser(c)
+		// 手机号唯一性：非空手机号不能被其他账号占用（保证手机号登录的确定性）。
+		if req.Mobile != "" {
+			var count int64
+			db.Model(&model.User{}).Where("mobile = ? AND username != ?", req.Mobile, username).Count(&count)
+			if count > 0 {
+				c.JSON(http.StatusConflict, gin.H{"message": "手机号已被占用"})
+				return
+			}
+		}
 		// 用 map 更新，保证空字符串能真正清空字段（struct 会跳过零值）。
 		if err := db.Model(&model.User{}).Where("username = ?", username).Updates(map[string]any{
 			"nickname": req.Nickname,

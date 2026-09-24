@@ -24,6 +24,18 @@ type authIdentity struct {
 	Role     string
 }
 
+// findUserByLogin 按「用户名或手机号」查找注册用户。
+func findUserByLogin(db *gorm.DB, identifier string) (*model.User, error) {
+	var user model.User
+	if err := db.Where("username = ?", identifier).First(&user).Error; err == nil {
+		return &user, nil
+	}
+	if err := db.Where("mobile = ?", identifier).First(&user).Error; err == nil {
+		return &user, nil
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
 // New 构建 JWT 认证中间件：仅校验数据库中的注册用户，数据库不可用时登录一律失败。
 func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 	secret := os.Getenv("JWT_SECRET")
@@ -36,7 +48,7 @@ func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 		Timeout:     24 * time.Hour,
 		MaxRefresh:  7 * 24 * time.Hour,
 		IdentityKey: "user",
-		PayloadFunc: func(data interface{}) jwt.MapClaims {
+		PayloadFunc: func(data any) jwt.MapClaims {
 			if ident, ok := data.(authIdentity); ok {
 				role := ident.Role
 				if role == "" {
@@ -46,7 +58,7 @@ func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 			}
 			return jwt.MapClaims{}
 		},
-		Authenticator: func(c *gin.Context) (interface{}, error) {
+		Authenticator: func(c *gin.Context) (any, error) {
 			var req loginRequest
 			if err := c.ShouldBindJSON(&req); err != nil {
 				return nil, jwt.ErrMissingLoginValues
@@ -54,8 +66,8 @@ func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 			if db == nil {
 				return nil, jwt.ErrFailedAuthentication
 			}
-			var user model.User
-			if err := db.Where("username = ?", req.Username).First(&user).Error; err != nil {
+			user, err := findUserByLogin(db, req.Username)
+			if err != nil {
 				return nil, jwt.ErrFailedAuthentication
 			}
 			if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)) != nil {

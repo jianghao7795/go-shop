@@ -58,7 +58,7 @@ async function onSubmit() {
       <h2>欢迎登录优选商城</h2>
       <van-form @submit="onSubmit">
         <van-cell-group inset>
-          <van-field v-model="username" name="username" label="用户名" placeholder="请输入用户名" clearable :rules="[{ required: true, message: '请输入用户名' }]" />
+          <van-field v-model="username" name="username" label="账号" placeholder="用户名 / 手机号" clearable :rules="[{ required: true, message: '请输入用户名或手机号' }]" />
           <van-field v-model="password" type="password" name="password" label="密码" placeholder="请输入密码" clearable :rules="[{ required: true, message: '请输入密码' }]" />
         </van-cell-group>
         <div class="login-options">
@@ -69,7 +69,7 @@ async function onSubmit() {
           <van-button round block type="danger" native-type="submit" :loading="loading">登录</van-button>
         </div>
       </van-form>
-      <p class="login-hint">请使用已注册的账号登录</p>
+      <p class="login-hint">使用用户名或手机号登录</p>
     </div>
   </div>
 </template>
