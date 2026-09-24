@@ -91,6 +91,10 @@ func Start() {
 	admin.Use(jwtMiddleware.MiddlewareFunc(), adminRequired())
 	admin.GET("/users", adminListUsers(db))
 	admin.PUT("/users/:id/status", adminUpdateUserStatus(db))
+	admin.GET("/products", adminListProducts(db))
+	admin.POST("/products", adminCreateProduct(db))
+	admin.PUT("/products/:id", adminUpdateProduct(db))
+	admin.DELETE("/products/:id", adminDeleteProduct(db))
 
 	router.GET("/api/health", healthHandler(databaseReady))
 	router.GET("/api/categories", listCategories(db, databaseReady))
