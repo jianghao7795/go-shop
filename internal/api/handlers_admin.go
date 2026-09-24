@@ -390,6 +390,22 @@ func validateCoupon(p couponPayload) string {
 	return ""
 }
 
+// parseCouponTime 依次尝试多种时间格式，兼容前端回传的 RFC3339(Nano) 与
+// "2006-01-02 15:04:05" 字符串，返回第一个能解析成功的时间。
+func parseCouponTime(s string) (time.Time, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, false
+	}
+	layouts := []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05"}
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
 // parseCouponPeriod 解析优惠券有效期；两个时间都为空时使用默认有效期。
 func parseCouponPeriod(p couponPayload) (time.Time, time.Time, bool) {
 	if strings.TrimSpace(p.StartAt) == "" && strings.TrimSpace(p.EndAt) == "" {
@@ -399,12 +415,12 @@ func parseCouponPeriod(p couponPayload) (time.Time, time.Time, bool) {
 	if strings.TrimSpace(p.StartAt) == "" || strings.TrimSpace(p.EndAt) == "" {
 		return time.Time{}, time.Time{}, false
 	}
-	startAt, err := time.Parse("2006-01-02 15:04:05", p.StartAt)
-	if err != nil {
+	startAt, ok := parseCouponTime(p.StartAt)
+	if !ok {
 		return time.Time{}, time.Time{}, false
 	}
-	endAt, err := time.Parse("2006-01-02 15:04:05", p.EndAt)
-	if err != nil {
+	endAt, ok := parseCouponTime(p.EndAt)
+	if !ok {
 		return time.Time{}, time.Time{}, false
 	}
 	if !startAt.Before(endAt) {

@@ -53,6 +53,13 @@ function openCreate() {
   showForm.value = true;
 }
 
+function formatTime(s: string) {
+  if (!s) return "-";
+  // 将 RFC3339(Nano) 或 "2006-01-02 15:04:05" 统一展示为 "YYYY-MM-DD HH:mm"
+  const t = s.replace("T", " ").replace(/\.\d+/, "").replace(/([+-]\d{2}:\d{2}|Z)$/, "");
+  return t.length >= 16 ? t.slice(0, 16) : t;
+}
+
 function openEdit(c: Coupon) {
   editingId.value = c.id;
   Object.assign(form, {
@@ -136,11 +143,11 @@ onMounted(load);
       <tbody>
         <tr v-for="c in list" :key="c.id">
           <td>{{ c.title }}</td>
-          <td>¥{{ (c.amount / 100).toFixed(2) }}</td>
-          <td>¥{{ (c.minAmount / 100).toFixed(2) }}</td>
+          <td>¥{{ c.amount }}</td>
+          <td>¥{{ c.minAmount }}</td>
           <td>{{ c.condition || "-" }}</td>
-          <td>{{ c.startAt }}</td>
-          <td>{{ c.endAt }}</td>
+          <td>{{ formatTime(c.startAt) }}</td>
+          <td>{{ formatTime(c.endAt) }}</td>
           <td class="admin-ops">
             <van-button size="small" @click="openEdit(c)">编辑</van-button>
             <van-button size="small" type="danger" @click="remove(c)">删除</van-button>
@@ -153,8 +160,8 @@ onMounted(load);
       <div class="form-popup">
         <h3>{{ editingId ? "编辑优惠券" : "新建优惠券" }}</h3>
         <van-field v-model="form.title" label="标题" placeholder="优惠券标题" />
-        <van-field v-model="form.amount" label="金额(分)" type="number" placeholder="金额，单位分" />
-        <van-field v-model="form.minAmount" label="门槛(分)" type="number" placeholder="使用门槛，单位分" />
+        <van-field v-model="form.amount" label="金额(元)" type="number" placeholder="金额，单位元" />
+        <van-field v-model="form.minAmount" label="门槛(元)" type="number" placeholder="使用门槛，单位元" />
         <van-field v-model="form.condition" label="条件" placeholder="使用条件说明" />
         <van-field v-model="form.startAt" label="开始" placeholder="2006-01-02 15:04:05" />
         <van-field v-model="form.endAt" label="结束" placeholder="2006-01-02 15:04:05" />
