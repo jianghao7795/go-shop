@@ -88,7 +88,7 @@ func Start() {
 	protected.PUT("/notifications/:id/read", markNotificationRead(db))
 
 	admin := router.Group("/api/admin")
-	admin.Use(jwtMiddleware.MiddlewareFunc(), adminRequired())
+	admin.Use(jwtMiddleware.MiddlewareFunc(), adminRequired(db))
 	admin.GET("/users", adminListUsers(db))
 	admin.PUT("/users/:id/status", adminUpdateUserStatus(db))
 	admin.GET("/products", adminListProducts(db))
