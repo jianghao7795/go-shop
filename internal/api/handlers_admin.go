@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -367,5 +368,144 @@ func adminUpdateOrderStatus(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
 		notify(db, hub, order.UserID, model.NotificationTypeOrder, "订单状态更新",
 			"您的订单 "+order.OrderNo+" 已更新为 "+text, order.OrderNo)
 		c.JSON(http.StatusOK, gin.H{"message": "已更新"})
+	}
+}
+
+type couponPayload struct {
+	Title     string `json:"title"`
+	Amount    int    `json:"amount"`
+	MinAmount int    `json:"minAmount"`
+	Condition string `json:"condition"`
+	StartAt   string `json:"startAt"` // 2006-01-02 15:04:05
+	EndAt     string `json:"endAt"`
+}
+
+func validateCoupon(p couponPayload) string {
+	if strings.TrimSpace(p.Title) == "" {
+		return "券标题不能为空"
+	}
+	if p.Amount <= 0 || p.MinAmount < 0 {
+		return "金额不合法"
+	}
+	return ""
+}
+
+// parseCouponPeriod 解析优惠券有效期；两个时间都为空时使用默认有效期。
+func parseCouponPeriod(p couponPayload) (time.Time, time.Time, bool) {
+	if strings.TrimSpace(p.StartAt) == "" && strings.TrimSpace(p.EndAt) == "" {
+		start, end := model.DefaultCouponPeriod()
+		return start, end, true
+	}
+	if strings.TrimSpace(p.StartAt) == "" || strings.TrimSpace(p.EndAt) == "" {
+		return time.Time{}, time.Time{}, false
+	}
+	startAt, err := time.Parse("2006-01-02 15:04:05", p.StartAt)
+	if err != nil {
+		return time.Time{}, time.Time{}, false
+	}
+	endAt, err := time.Parse("2006-01-02 15:04:05", p.EndAt)
+	if err != nil {
+		return time.Time{}, time.Time{}, false
+	}
+	if !startAt.Before(endAt) {
+		return time.Time{}, time.Time{}, false
+	}
+	return startAt, endAt, true
+}
+
+func adminListCoupons(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		var items []model.Coupon
+		if err := db.Order("id DESC").Find(&items).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "查询失败"})
+			return
+		}
+		c.JSON(http.StatusOK, items)
+	}
+}
+
+func adminCreateCoupon(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var p couponPayload
+		if err := c.ShouldBindJSON(&p); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "请求格式错误"})
+			return
+		}
+		if msg := validateCoupon(p); msg != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
+			return
+		}
+		startAt, endAt, ok := parseCouponPeriod(p)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "有效期不合法"})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		item := model.Coupon{Title: p.Title, Amount: p.Amount, MinAmount: p.MinAmount, Condition: p.Condition, StartAt: startAt, EndAt: endAt}
+		if err := db.Create(&item).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "创建失败"})
+			return
+		}
+		c.JSON(http.StatusOK, item)
+	}
+}
+
+func adminUpdateCoupon(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "非法优惠券 ID"})
+			return
+		}
+		var p couponPayload
+		if err := c.ShouldBindJSON(&p); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "请求格式错误"})
+			return
+		}
+		if msg := validateCoupon(p); msg != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
+			return
+		}
+		startAt, endAt, ok := parseCouponPeriod(p)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "有效期不合法"})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		updates := map[string]any{"title": p.Title, "amount": p.Amount, "min_amount": p.MinAmount, "condition": p.Condition, "start_at": startAt, "end_at": endAt}
+		if err := db.Model(&model.Coupon{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
+	}
+}
+
+func adminDeleteCoupon(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "非法优惠券 ID"})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		if err := db.Delete(&model.Coupon{}, id).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "删除失败"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 	}
 }

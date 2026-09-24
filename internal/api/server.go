@@ -102,6 +102,10 @@ func Start() {
 	admin.GET("/orders", adminListOrders(db))
 	admin.GET("/orders/:id", adminGetOrder(db))
 	admin.PUT("/orders/:id/status", adminUpdateOrderStatus(db, hub))
+	admin.GET("/coupons", adminListCoupons(db))
+	admin.POST("/coupons", adminCreateCoupon(db))
+	admin.PUT("/coupons/:id", adminUpdateCoupon(db))
+	admin.DELETE("/coupons/:id", adminDeleteCoupon(db))
 
 	router.GET("/api/health", healthHandler(databaseReady))
 	router.GET("/api/categories", listCategories(db, databaseReady))
