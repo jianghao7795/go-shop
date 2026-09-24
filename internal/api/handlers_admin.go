@@ -283,3 +283,89 @@ func adminDeleteCategory(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 	}
 }
+
+// adminListOrders 返回全部订单（可选 ?status= 过滤，无用户隔离）。
+func adminListOrders(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		status := c.Query("status")
+		q := db.Model(&model.Order{})
+		if status != "" {
+			q = q.Where("status = ?", status)
+		}
+		var list []model.Order
+		if err := q.Order("id DESC").Find(&list).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "查询失败"})
+			return
+		}
+		c.JSON(http.StatusOK, list)
+	}
+}
+
+// adminGetOrder 按 id 查询单个订单（无用户隔离）。
+func adminGetOrder(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "无效的订单"})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		var order model.Order
+		if err := db.Where("id = ?", id).First(&order).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "订单不存在"})
+			return
+		}
+		c.JSON(http.StatusOK, order)
+	}
+}
+
+// adminUpdateOrderStatus 管理员更新任意订单状态，并通知订单所属用户。
+func adminUpdateOrderStatus(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "无效的订单"})
+			return
+		}
+		var req struct {
+			Status string `json:"status" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "非法状态"})
+			return
+		}
+		switch req.Status {
+		case model.OrderStatusPending, model.OrderStatusShipped, model.OrderStatusCompleted, model.OrderStatusAftersale, model.OrderStatusFinished:
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"message": "非法状态"})
+			return
+		}
+		var order model.Order
+		if err := db.Where("id = ?", id).First(&order).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "订单不存在"})
+			return
+		}
+		if err := db.Model(&model.Order{}).Where("id = ?", id).Update("status", req.Status).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
+			return
+		}
+		text := statusText[req.Status]
+		if text == "" {
+			text = req.Status
+		}
+		notify(db, hub, order.UserID, model.NotificationTypeOrder, "订单状态更新",
+			"您的订单 "+order.OrderNo+" 已更新为 "+text, order.OrderNo)
+		c.JSON(http.StatusOK, gin.H{"message": "已更新"})
+	}
+}
