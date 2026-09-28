@@ -68,10 +68,11 @@ func Start() {
 		}
 		var allPerms []model.Permission
 		db.Find(&allPerms)
-		var linked int64
-		db.Model(&model.RolePermission{}).Where("role_id = ?", adminRole.ID).Count(&linked)
-		if linked == 0 {
-			for _, p := range allPerms {
+		// 确保 admin 角色关联全部权限（每权限幂等，新增权限点后重启也会自动补链）
+		for _, p := range allPerms {
+			var n int64
+			db.Model(&model.RolePermission{}).Where("role_id = ? AND permission_id = ?", adminRole.ID, p.ID).Count(&n)
+			if n == 0 {
 				db.Create(&model.RolePermission{RoleID: adminRole.ID, PermissionID: p.ID})
 			}
 		}
