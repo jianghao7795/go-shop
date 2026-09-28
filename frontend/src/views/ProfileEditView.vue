@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
-import { showToast } from "vant";
+import { showToast, showImagePreview } from "vant";
 import { useUserStore } from "../stores/user";
 import http from "../lib/http";
 import { avatarSrc } from "../lib/avatar";
@@ -46,6 +46,11 @@ function pickPreset(emoji: string) {
   avatar.value = emoji;
 }
 
+function previewAvatar() {
+  const src = avatarSrc(avatar.value);
+  if (src) showImagePreview([src]);
+}
+
 const mobileRule = {
   validator: (val: string) => !val || /^1[3-9]\d{9}$/.test(val),
   message: "手机号格式不正确",
@@ -82,7 +87,7 @@ async function onSubmit() {
     <van-form @submit="onSubmit">
       <van-cell-group inset class="avatar-group">
         <div class="avatar-editor">
-          <div class="avatar-preview">
+          <div class="avatar-preview" @click="previewAvatar">
             <img v-if="avatarSrc(avatar)" :src="avatarSrc(avatar)" alt="头像" />
             <span v-else>{{ avatar || "👤" }}</span>
           </div>
@@ -133,6 +138,7 @@ async function onSubmit() {
   overflow: hidden;
   font-size: 36px;
   flex-shrink: 0;
+  cursor: pointer;
 }
 .avatar-preview img {
   width: 100%;

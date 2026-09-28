@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
-import { showToast } from "vant";
+import { showToast, showImagePreview } from "vant";
 import { useUserStore } from "../stores/user";
 import { useNotificationStore } from "../stores/notification";
 import { avatarSrc } from "../lib/avatar";
@@ -21,13 +21,18 @@ function logout() {
 function goOrders(status = "") {
   router.push({ name: "orders", query: status ? { status } : {} });
 }
+
+function previewAvatar() {
+  const src = avatarSrc(userStore.avatar);
+  if (src) showImagePreview([src]);
+}
 </script>
 
 <template>
   <div class="sub-page profile-page">
     <van-nav-bar title="个人中心" />
     <section class="profile-header">
-      <div class="avatar">
+      <div class="avatar" @click="previewAvatar">
         <img v-if="avatarSrc(userStore.avatar)" :src="avatarSrc(userStore.avatar)" alt="头像" />
         <span v-else>{{ userStore.avatar || "👤" }}</span>
       </div>
