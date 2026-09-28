@@ -120,6 +120,9 @@ func Start() {
 	admin.POST("/roles", requirePermission(db, model.PermUser), adminCreateRole(db))
 	admin.PUT("/roles/:id", requirePermission(db, model.PermUser), adminUpdateRole(db))
 	admin.DELETE("/roles/:id", requirePermission(db, model.PermUser), adminDeleteRole(db))
+	// 用户角色
+	admin.GET("/users/:id/roles", requirePermission(db, model.PermUser), adminGetUserRoles(db))
+	admin.PUT("/users/:id/roles", requirePermission(db, model.PermUser), adminSetUserRoles(db))
 	// 商品
 	admin.GET("/products", requirePermission(db, model.PermProduct), adminListProducts(db))
 	admin.POST("/products", requirePermission(db, model.PermProduct), adminCreateProduct(db))

@@ -842,3 +842,57 @@ func adminDeleteRole(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 	}
 }
+
+func adminGetUserRoles(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "非法用户 ID"})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		if err := db.First(&model.User{}, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "用户不存在"})
+			return
+		}
+		var roleIDs []uint
+		db.Model(&model.UserRole{}).Where("user_id = ?", id).Pluck("role_id", &roleIDs)
+		c.JSON(http.StatusOK, gin.H{"roleIds": roleIDs})
+	}
+}
+
+func adminSetUserRoles(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "非法用户 ID"})
+			return
+		}
+		var req struct {
+			RoleIDs []uint `json:"roleIds"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "请求格式错误"})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		if err := db.First(&model.User{}, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "用户不存在"})
+			return
+		}
+		if err := db.Where("user_id = ?", id).Delete(&model.UserRole{}).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
+			return
+		}
+		for _, rid := range req.RoleIDs {
+			db.Create(&model.UserRole{UserID: uint(id), RoleID: rid})
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "已更新"})
+	}
+}
