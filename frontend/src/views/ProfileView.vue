@@ -24,7 +24,7 @@ function goOrders(status = "") {
 
 function previewAvatar() {
   const src = avatarSrc(userStore.avatar);
-  if (src) showImagePreview([src]);
+  if (src) showImagePreview({ images: [src], closeable: true, closeOnClickImage: true });
 }
 </script>
 

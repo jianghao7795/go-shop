@@ -48,7 +48,7 @@ function pickPreset(emoji: string) {
 
 function previewAvatar() {
   const src = avatarSrc(avatar.value);
-  if (src) showImagePreview([src]);
+  if (src) showImagePreview({ images: [src], closeable: true, closeOnClickImage: true });
 }
 
 const mobileRule = {
