@@ -34,6 +34,7 @@ const router = createRouter({
         { path: "orders", name: "admin-orders", component: () => import("../views/admin/OrdersView.vue"), meta: { title: "订单管理" } },
         { path: "coupons", name: "admin-coupons", component: () => import("../views/admin/CouponsView.vue"), meta: { title: "优惠券管理" } },
         { path: "notifications", name: "admin-notifications", component: () => import("../views/admin/NotificationsView.vue"), meta: { title: "通知管理" } },
+        { path: "permissions", name: "admin-permissions", component: () => import("../views/admin/PermissionsView.vue"), meta: { title: "权限管理" } },
       ],
     },
     { path: "/:pathMatch(.*)*", redirect: { name: "home" } },

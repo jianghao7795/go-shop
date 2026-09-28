@@ -8,29 +8,37 @@ interface Role {
   id: number;
   name: string;
   description: string;
-  permissions: string[];
+  permissionIds: number[];
 }
 
-const PERMISSIONS = [
-  { key: "product:manage", label: "商品" },
-  { key: "category:manage", label: "分类" },
-  { key: "order:manage", label: "订单" },
-  { key: "user:manage", label: "用户" },
-  { key: "coupon:manage", label: "优惠券" },
-  { key: "notification:manage", label: "通知" },
-];
+interface Permission {
+  id: number;
+  code: string;
+  name: string;
+  path: string;
+}
 
-const permLabels: Record<string, string> = Object.fromEntries(
-  PERMISSIONS.map((p) => [p.key, p.label])
-);
-
+const permissions = ref<Permission[]>([]);
 const list = ref<Role[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 const showForm = ref(false);
 const editingId = ref<number | null>(null);
 
-const form = reactive({ name: "", description: "", permissions: [] as string[] });
+const form = reactive({ name: "", description: "", permissionIds: [] as number[] });
+
+function permName(id: number) {
+  return permissions.value.find((p) => p.id === id)?.name || String(id);
+}
+
+async function loadPermissions() {
+  try {
+    const res = await http.get("/api/admin/permissions");
+    permissions.value = res.data;
+  } catch {
+    showToast("权限加载失败");
+  }
+}
 
 async function load() {
   loading.value = true;
@@ -50,7 +58,7 @@ function isBuiltin(r: Role) {
 
 function openCreate() {
   editingId.value = null;
-  Object.assign(form, { name: "", description: "", permissions: [] });
+  Object.assign(form, { name: "", description: "", permissionIds: [] });
   showForm.value = true;
 }
 
@@ -59,15 +67,15 @@ function openEdit(r: Role) {
   Object.assign(form, {
     name: r.name,
     description: r.description,
-    permissions: [...(r.permissions || [])],
+    permissionIds: [...(r.permissionIds || [])],
   });
   showForm.value = true;
 }
 
-function togglePerm(key: string) {
-  const idx = form.permissions.indexOf(key);
-  if (idx >= 0) form.permissions.splice(idx, 1);
-  else form.permissions.push(key);
+function togglePerm(id: number) {
+  const idx = form.permissionIds.indexOf(id);
+  if (idx >= 0) form.permissionIds.splice(idx, 1);
+  else form.permissionIds.push(id);
 }
 
 async function submit() {
@@ -76,7 +84,7 @@ async function submit() {
     const body = {
       name: form.name,
       description: form.description,
-      permissions: [...form.permissions],
+      permissionIds: [...form.permissionIds],
     };
     if (editingId.value) {
       await http.put("/api/admin/roles/" + editingId.value, body);
@@ -111,7 +119,10 @@ async function remove(r: Role) {
   }
 }
 
-onMounted(load);
+onMounted(() => {
+  load();
+  loadPermissions();
+});
 </script>
 
 <template>
@@ -134,11 +145,11 @@ onMounted(load);
           <td>{{ r.description || "-" }}</td>
           <td>
             <span
-              v-for="p in r.permissions"
-              :key="p"
+              v-for="id in r.permissionIds"
+              :key="id"
               class="perm-tag"
-            >{{ permLabels[p] || p }}</span>
-            <span v-if="!r.permissions || r.permissions.length === 0">-</span>
+            >{{ permName(id) }}</span>
+            <span v-if="!r.permissionIds || r.permissionIds.length === 0">-</span>
           </td>
           <td class="admin-ops">
             <van-button size="small" :disabled="isBuiltin(r)" @click="openEdit(r)">编辑</van-button>
@@ -164,11 +175,11 @@ onMounted(load);
           <template #input>
             <div class="perm-checks">
               <van-checkbox
-                v-for="p in PERMISSIONS"
-                :key="p.key"
-                :model-value="form.permissions.includes(p.key)"
-                @click="togglePerm(p.key)"
-              >{{ p.label }}</van-checkbox>
+                v-for="p in permissions"
+                :key="p.id"
+                :model-value="form.permissionIds.includes(p.id)"
+                @click="togglePerm(p.id)"
+              >{{ p.name }}</van-checkbox>
             </div>
           </template>
         </van-field>
