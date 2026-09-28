@@ -113,7 +113,6 @@ onMounted(() => {
           <div class="hero-card" :class="`hero-${index + 1}`">
             <span class="hero-kicker">优选好物</span>
             <strong>{{ banner }}</strong>
-            <small>立即抢购 ></small>
           </div>
         </van-swipe-item>
       </van-swipe>
