@@ -28,6 +28,7 @@ const router = createRouter({
       children: [
         { path: "", name: "admin-dashboard", component: () => import("../views/admin/DashboardView.vue"), meta: { title: "概览" } },
         { path: "users", name: "admin-users", component: () => import("../views/admin/UsersView.vue"), meta: { title: "用户管理" } },
+        { path: "roles", name: "admin-roles", component: () => import("../views/admin/RolesView.vue"), meta: { title: "角色管理" } },
         { path: "products", name: "admin-products", component: () => import("../views/admin/ProductsView.vue"), meta: { title: "商品管理" } },
         { path: "categories", name: "admin-categories", component: () => import("../views/admin/CategoriesView.vue"), meta: { title: "分类管理" } },
         { path: "orders", name: "admin-orders", component: () => import("../views/admin/OrdersView.vue"), meta: { title: "订单管理" } },
