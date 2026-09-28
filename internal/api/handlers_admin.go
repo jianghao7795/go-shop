@@ -693,21 +693,50 @@ func adminSendNotification(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
 }
 
 type rolePayload struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Permissions []string `json:"permissions"`
+	Name          string `json:"name"`
+	Description   string `json:"description"`
+	PermissionIDs []uint `json:"permissionIds"`
 }
 
 func validateRole(p rolePayload) string {
 	if strings.TrimSpace(p.Name) == "" {
 		return "角色名不能为空"
 	}
-	for _, perm := range p.Permissions {
-		if !hasPermission(model.AllPermissions, perm) {
-			return "存在未知权限点: " + perm
+	return ""
+}
+
+// roleView 是角色列表/详情返回结构，permissionIds 由 role_permissions 填充。
+type roleView struct {
+	ID            uint   `json:"id"`
+	Name          string `json:"name"`
+	Description   string `json:"description"`
+	PermissionIDs []uint `json:"permissionIds"`
+}
+
+func rolePermissionIDs(db *gorm.DB, roleID uint) []uint {
+	var ids []uint
+	db.Model(&model.RolePermission{}).Where("role_id = ?", roleID).Pluck("permission_id", &ids)
+	if ids == nil {
+		ids = []uint{}
+	}
+	return ids
+}
+
+func toRoleView(db *gorm.DB, r model.Role) roleView {
+	return roleView{ID: r.ID, Name: r.Name, Description: r.Description, PermissionIDs: rolePermissionIDs(db, r.ID)}
+}
+
+// rewriteRolePermissions 重写角色的权限关联（先删后建）。
+func rewriteRolePermissions(tx *gorm.DB, roleID uint, permIDs []uint) error {
+	if err := tx.Where("role_id = ?", roleID).Delete(&model.RolePermission{}).Error; err != nil {
+		return err
+	}
+	for _, pid := range permIDs {
+		if err := tx.Create(&model.RolePermission{RoleID: roleID, PermissionID: pid}).Error; err != nil {
+			return err
 		}
 	}
-	return ""
+	return nil
 }
 
 func adminListRoles(db *gorm.DB) gin.HandlerFunc {
@@ -721,7 +750,11 @@ func adminListRoles(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "查询失败"})
 			return
 		}
-		c.JSON(http.StatusOK, items)
+		views := make([]roleView, 0, len(items))
+		for _, r := range items {
+			views = append(views, toRoleView(db, r))
+		}
+		c.JSON(http.StatusOK, views)
 	}
 }
 
@@ -737,12 +770,23 @@ func adminCreateRole(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
 			return
 		}
-		if hasPermission(p.Permissions, model.PermUser) {
-			c.JSON(http.StatusForbidden, gin.H{"message": "不能授予用户管理权限"})
-			return
-		}
 		if db == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		// 校验权限 ID 都存在
+		if len(p.PermissionIDs) > 0 {
+			var cnt int64
+			db.Model(&model.Permission{}).Where("id IN ?", p.PermissionIDs).Count(&cnt)
+			if int(cnt) != len(p.PermissionIDs) {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "存在无效权限"})
+				return
+			}
+		}
+		// 防提权：不可授予 user:manage
+		var userPerm model.Permission
+		if db.Where("code = ?", model.PermUser).First(&userPerm).Error == nil && slices.Contains(p.PermissionIDs, userPerm.ID) {
+			c.JSON(http.StatusForbidden, gin.H{"message": "不能授予用户管理权限"})
 			return
 		}
 		if p.Name == model.RoleAdmin || p.Name == model.RoleCustomer {
@@ -754,16 +798,18 @@ func adminCreateRole(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusConflict, gin.H{"message": "角色名已存在"})
 			return
 		}
-		perms := p.Permissions
-		if perms == nil {
-			perms = []string{}
-		}
-		item := model.Role{Name: p.Name, Description: p.Description, Permissions: perms}
-		if err := db.Create(&item).Error; err != nil {
+		item := model.Role{Name: p.Name, Description: p.Description}
+		err := db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Create(&item).Error; err != nil {
+				return err
+			}
+			return rewriteRolePermissions(tx, item.ID, p.PermissionIDs)
+		})
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "创建失败"})
 			return
 		}
-		c.JSON(http.StatusOK, item)
+		c.JSON(http.StatusOK, toRoleView(db, item))
 	}
 }
 
@@ -784,10 +830,6 @@ func adminUpdateRole(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
 			return
 		}
-		if hasPermission(p.Permissions, model.PermUser) {
-			c.JSON(http.StatusForbidden, gin.H{"message": "不能授予用户管理权限"})
-			return
-		}
 		if db == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
 			return
@@ -801,19 +843,35 @@ func adminUpdateRole(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusForbidden, gin.H{"message": "内置角色不可修改"})
 			return
 		}
+		// 校验权限 ID 都存在
+		if len(p.PermissionIDs) > 0 {
+			var cnt int64
+			db.Model(&model.Permission{}).Where("id IN ?", p.PermissionIDs).Count(&cnt)
+			if int(cnt) != len(p.PermissionIDs) {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "存在无效权限"})
+				return
+			}
+		}
+		// 防提权：不可授予 user:manage
+		var userPerm model.Permission
+		if db.Where("code = ?", model.PermUser).First(&userPerm).Error == nil && slices.Contains(p.PermissionIDs, userPerm.ID) {
+			c.JSON(http.StatusForbidden, gin.H{"message": "不能授予用户管理权限"})
+			return
+		}
 		var dup model.Role
 		if err := db.Where("name = ? AND id != ?", p.Name, id).First(&dup).Error; err == nil {
 			c.JSON(http.StatusConflict, gin.H{"message": "角色名已存在"})
 			return
 		}
-		perms := p.Permissions
-		if perms == nil {
-			perms = []string{}
-		}
 		existing.Name = p.Name
 		existing.Description = p.Description
-		existing.Permissions = perms
-		if err := db.Save(&existing).Error; err != nil {
+		err = db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Save(&existing).Error; err != nil {
+				return err
+			}
+			return rewriteRolePermissions(tx, existing.ID, p.PermissionIDs)
+		})
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
 			return
 		}
@@ -841,13 +899,106 @@ func adminDeleteRole(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusForbidden, gin.H{"message": "内置角色不可删除"})
 			return
 		}
-		res := db.Delete(&model.Role{}, id)
+		err = db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Where("role_id = ?", id).Delete(&model.RolePermission{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("role_id = ?", id).Delete(&model.UserRole{}).Error; err != nil {
+				return err
+			}
+			return tx.Delete(&model.Role{}, id).Error
+		})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "删除失败"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+	}
+}
+
+// adminListPermissions 返回全部权限点（按 id 升序）。
+func adminListPermissions(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		var items []model.Permission
+		if err := db.Order("id ASC").Find(&items).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "查询失败"})
+			return
+		}
+		c.JSON(http.StatusOK, items)
+	}
+}
+
+type permissionPayload struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
+
+// adminCreatePermission 新建权限点，code 唯一。
+func adminCreatePermission(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var p permissionPayload
+		if err := c.ShouldBindJSON(&p); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "请求格式错误"})
+			return
+		}
+		p.Code = strings.TrimSpace(p.Code)
+		p.Name = strings.TrimSpace(p.Name)
+		if p.Code == "" || p.Name == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "code 和名称不能为空"})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		var existing model.Permission
+		if err := db.Where("code = ?", p.Code).First(&existing).Error; err == nil {
+			c.JSON(http.StatusConflict, gin.H{"message": "权限 code 已存在"})
+			return
+		}
+		item := model.Permission{Code: p.Code, Name: p.Name, Path: p.Path}
+		if err := db.Create(&item).Error; err != nil {
+			if isDuplicateKey(err) {
+				c.JSON(http.StatusConflict, gin.H{"message": "权限 code 已存在"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "创建失败"})
+			return
+		}
+		c.JSON(http.StatusOK, item)
+	}
+}
+
+// adminDeletePermission 删除权限点；被角色引用时拒绝删除。
+func adminDeletePermission(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "非法权限 ID"})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		var cnt int64
+		db.Model(&model.RolePermission{}).Where("permission_id = ?", id).Count(&cnt)
+		if cnt > 0 {
+			c.JSON(http.StatusConflict, gin.H{"message": "权限点已被角色引用，无法删除"})
+			return
+		}
+		res := db.Delete(&model.Permission{}, id)
 		if res.Error != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "删除失败"})
 			return
 		}
 		if res.RowsAffected == 0 {
-			c.JSON(http.StatusNotFound, gin.H{"message": "角色不存在"})
+			c.JSON(http.StatusNotFound, gin.H{"message": "权限不存在"})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})

@@ -136,6 +136,10 @@ func Start() {
 	admin.POST("/roles", requirePermission(db, model.PermUser), adminCreateRole(db))
 	admin.PUT("/roles/:id", requirePermission(db, model.PermUser), adminUpdateRole(db))
 	admin.DELETE("/roles/:id", requirePermission(db, model.PermUser), adminDeleteRole(db))
+	// 权限点
+	admin.GET("/permissions", requirePermission(db, model.PermUser), adminListPermissions(db))
+	admin.POST("/permissions", requirePermission(db, model.PermUser), adminCreatePermission(db))
+	admin.DELETE("/permissions/:id", requirePermission(db, model.PermUser), adminDeletePermission(db))
 	// 用户角色
 	admin.GET("/users/:id/roles", requirePermission(db, model.PermUser), adminGetUserRoles(db))
 	admin.PUT("/users/:id/roles", requirePermission(db, model.PermUser), adminSetUserRoles(db))
