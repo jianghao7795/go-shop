@@ -53,6 +53,27 @@ func Start() {
 		couponStart, couponEnd := model.DefaultCouponPeriod()
 		db.Model(&model.Coupon{}).Where("start_at IS NULL").Update("start_at", couponStart)
 		db.Model(&model.Coupon{}).Where("end_at IS NULL").Update("end_at", couponEnd)
+		// 种子内置角色
+		var adminRole model.Role
+		if db.Where("name = ?", model.RoleAdmin).First(&adminRole).Error != nil {
+			adminRole = model.Role{Name: model.RoleAdmin, Description: "超级管理员", Permissions: model.AllPermissions}
+			db.Create(&adminRole)
+		}
+		var customerRole model.Role
+		if db.Where("name = ?", model.RoleCustomer).First(&customerRole).Error != nil {
+			customerRole = model.Role{Name: model.RoleCustomer, Description: "普通用户", Permissions: []string{}}
+			db.Create(&customerRole)
+		}
+		// 迁移现有 role='admin' 的用户到 admin 角色
+		var legacyAdmins []model.User
+		db.Where("role = ?", model.RoleAdmin).Find(&legacyAdmins)
+		for _, u := range legacyAdmins {
+			var n int64
+			db.Model(&model.UserRole{}).Where("user_id = ? AND role_id = ?", u.ID, adminRole.ID).Count(&n)
+			if n == 0 {
+				db.Create(&model.UserRole{UserID: u.ID, RoleID: adminRole.ID})
+			}
+		}
 	}
 
 	gin.SetMode(gin.ReleaseMode)
