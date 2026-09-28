@@ -6,21 +6,6 @@ import (
 	"shop/internal/model"
 )
 
-// unionPermissions 合并多个角色的权限点（去重）。
-func unionPermissions(roles []model.Role) []string {
-	seen := map[string]bool{}
-	var perms []string
-	for _, r := range roles {
-		for _, p := range r.Permissions {
-			if !seen[p] {
-				seen[p] = true
-				perms = append(perms, p)
-			}
-		}
-	}
-	return perms
-}
-
 // hasPermission 判断权限列表是否包含某权限点。
 func hasPermission(perms []string, perm string) bool {
 	for _, p := range perms {
@@ -42,7 +27,12 @@ func effectivePermissions(db *gorm.DB, username string) []string {
 	if len(roleIDs) == 0 {
 		return nil
 	}
-	var roles []model.Role
-	db.Where("id IN ?", roleIDs).Find(&roles)
-	return unionPermissions(roles)
+	var permIDs []uint
+	db.Model(&model.RolePermission{}).Where("role_id IN ?", roleIDs).Pluck("permission_id", &permIDs)
+	if len(permIDs) == 0 {
+		return nil
+	}
+	var codes []string
+	db.Model(&model.Permission{}).Where("id IN ?", permIDs).Pluck("code", &codes)
+	return codes
 }
