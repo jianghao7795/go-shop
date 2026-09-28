@@ -1,17 +1,13 @@
 package api
 
-import (
-	"testing"
-
-	"shop/internal/model"
-)
+import "testing"
 
 func TestHasPermission(t *testing.T) {
-	perms := []string{model.PermProduct, model.PermOrder}
-	if !hasPermission(perms, model.PermProduct) {
+	perms := []string{"product:manage", "order:manage"}
+	if !hasPermission(perms, "product:manage") {
 		t.Fatal("should have product permission")
 	}
-	if hasPermission(perms, model.PermUser) {
+	if hasPermission(perms, "user:manage") {
 		t.Fatal("should not have user permission")
 	}
 }

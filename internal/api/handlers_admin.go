@@ -73,7 +73,7 @@ func adminUpdateUserStatus(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"message": "用户不存在"})
 			return
 		}
-		if req.Status == 0 && hasPermission(effectivePermissions(db, target.Username), model.PermUser) {
+		if req.Status == 0 && hasPermission(effectivePermissions(db, target.Username), "user:manage") {
 			c.JSON(http.StatusForbidden, gin.H{"message": "不能禁用管理员账号"})
 			return
 		}
@@ -785,7 +785,7 @@ func adminCreateRole(db *gorm.DB) gin.HandlerFunc {
 		}
 		// 防提权：不可授予 user:manage
 		var userPerm model.Permission
-		if db.Where("code = ?", model.PermUser).First(&userPerm).Error == nil && slices.Contains(p.PermissionIDs, userPerm.ID) {
+		if db.Where("code = ?", "user:manage").First(&userPerm).Error == nil && slices.Contains(p.PermissionIDs, userPerm.ID) {
 			c.JSON(http.StatusForbidden, gin.H{"message": "不能授予用户管理权限"})
 			return
 		}
@@ -854,7 +854,7 @@ func adminUpdateRole(db *gorm.DB) gin.HandlerFunc {
 		}
 		// 防提权：不可授予 user:manage
 		var userPerm model.Permission
-		if db.Where("code = ?", model.PermUser).First(&userPerm).Error == nil && slices.Contains(p.PermissionIDs, userPerm.ID) {
+		if db.Where("code = ?", "user:manage").First(&userPerm).Error == nil && slices.Contains(p.PermissionIDs, userPerm.ID) {
 			c.JSON(http.StatusForbidden, gin.H{"message": "不能授予用户管理权限"})
 			return
 		}
