@@ -29,7 +29,7 @@ func parsePagination(c *gin.Context) (page, pageSize int) {
 	return page, pageSize
 }
 
-// adminListUsers 分页返回全部用户（含昵称/手机号/角色/状态）。
+// adminListUsers 分页返回全部用户（含昵称/手机号/状态）。
 func adminListUsers(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if db == nil {
@@ -731,6 +731,7 @@ func adminCreateRole(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "请求格式错误"})
 			return
 		}
+		p.Name = strings.TrimSpace(p.Name)
 		if msg := validateRole(p); msg != "" {
 			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
 			return
@@ -777,6 +778,7 @@ func adminUpdateRole(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "请求格式错误"})
 			return
 		}
+		p.Name = strings.TrimSpace(p.Name)
 		if msg := validateRole(p); msg != "" {
 			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
 			return

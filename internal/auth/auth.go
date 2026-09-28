@@ -74,7 +74,7 @@ func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 			c.JSON(code, gin.H{"code": code, "message": message})
 		},
 		LoginResponse: func(c *gin.Context, code int, token string, expire time.Time) {
-			c.JSON(http.StatusOK, gin.H{"token": token, "expire": expire, "user": "customer"})
+			c.JSON(http.StatusOK, gin.H{"token": token, "expire": expire})
 		},
 	})
 }
