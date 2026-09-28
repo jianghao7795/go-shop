@@ -122,6 +122,7 @@ onMounted(load);
     </div>
 
     <van-loading v-if="loading" class="loading" color="#ff4d67" />
+    <van-empty v-else-if="!list.length" description="暂无角色" />
 
     <table v-else class="admin-table">
       <thead>

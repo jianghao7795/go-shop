@@ -48,6 +48,7 @@ async function openAssign(u: any) {
     selectedRoleIds.value = [...(userRolesRes.data.roleIds || [])];
   } catch {
     showToast("加载失败");
+    showAssign.value = false;
   } finally {
     assignLoading.value = false;
   }
