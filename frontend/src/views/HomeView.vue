@@ -108,14 +108,14 @@ onMounted(() => {
     <van-nav-bar title="优选商城" left-text="城市生活" :right-text="userStore.isLoggedIn ? userStore.username : '登录'" @click-right="onRightClick" />
     <van-search v-model="search" shape="round" placeholder="搜索商品、品牌" />
     <main class="shop-content">
-      <van-swipe class="hero" :autoplay="3500" indicator-color="white" lazy-render>
+      <!-- <van-swipe class="hero" :autoplay="3500" indicator-color="white" lazy-render>
         <van-swipe-item v-for="(banner, index) in ['今日特惠 · 满199减30', '春日焕新 · 新品低至5折', '品质生活 · 会员专享价']" :key="banner">
           <div class="hero-card" :class="`hero-${index + 1}`">
             <span class="hero-kicker">优选好物</span>
             <strong>{{ banner }}</strong>
           </div>
         </van-swipe-item>
-      </van-swipe>
+      </van-swipe> -->
 
       <van-grid :column-num="5" :border="false" class="category-grid">
         <van-grid-item v-for="category in categories" :key="category.value" :text="category.label" @click="selectCategory(category.value)">
