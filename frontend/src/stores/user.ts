@@ -25,6 +25,10 @@ export const useUserStore = defineStore("user", () => {
   const displayName = computed(() => nickname.value || username.value);
   const isAdmin = computed(() => permissions.value.length > 0);
 
+  function hasPerm(code: string) {
+    return permissions.value.includes(code);
+  }
+
   function applyProfile(p: any) {
     if (p.username) username.value = p.username;
     nickname.value = p.nickname || "";
@@ -69,5 +73,5 @@ export const useUserStore = defineStore("user", () => {
     applyProfile(res.data);
   }
 
-  return { token, username, nickname, avatar, mobile, email, permissions, isAdmin, isLoggedIn, displayName, setAuth, logout, validate, saveProfile };
+  return { token, username, nickname, avatar, mobile, email, permissions, isAdmin, isLoggedIn, displayName, hasPerm, setAuth, logout, validate, saveProfile };
 });
