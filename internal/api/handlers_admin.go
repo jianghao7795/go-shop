@@ -72,7 +72,7 @@ func adminUpdateUserStatus(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"message": "用户不存在"})
 			return
 		}
-		if req.Status == 0 && target.Role == model.RoleAdmin {
+		if req.Status == 0 && hasPermission(effectivePermissions(db, target.Username), model.PermUser) {
 			c.JSON(http.StatusForbidden, gin.H{"message": "不能禁用管理员账号"})
 			return
 		}

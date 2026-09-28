@@ -21,7 +21,6 @@ type loginRequest struct {
 // authIdentity 是认证通过后写入 JWT 的身份信息。
 type authIdentity struct {
 	Username string
-	Role     string
 }
 
 // findUserByLogin 按「用户名或手机号」查找注册用户。
@@ -50,11 +49,7 @@ func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 		IdentityKey: "user",
 		PayloadFunc: func(data any) jwt.MapClaims {
 			if ident, ok := data.(authIdentity); ok {
-				role := ident.Role
-				if role == "" {
-					role = model.RoleCustomer
-				}
-				return jwt.MapClaims{"user": ident.Username, "role": role}
+				return jwt.MapClaims{"user": ident.Username}
 			}
 			return jwt.MapClaims{}
 		},
@@ -73,11 +68,7 @@ func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 			if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)) != nil {
 				return nil, jwt.ErrFailedAuthentication
 			}
-			role := user.Role
-			if role == "" {
-				role = model.RoleCustomer
-			}
-			return authIdentity{Username: user.Username, Role: role}, nil
+			return authIdentity{Username: user.Username}, nil
 		},
 		Unauthorized: func(c *gin.Context, code int, message string) {
 			c.JSON(code, gin.H{"code": code, "message": message})

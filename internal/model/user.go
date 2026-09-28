@@ -15,7 +15,6 @@ type User struct {
 	Email       string         `json:"email,omitempty" gorm:"size:128"`
 	Nickname    string         `json:"nickname,omitempty" gorm:"size:64"`
 	Avatar      string         `json:"avatar,omitempty" gorm:"size:255"`
-	Role        string         `json:"role" gorm:"size:20;default:customer"`
 	Status      int            `json:"status" gorm:"type:tinyint;not null;default:1"`
 	LastLoginAt *time.Time     `json:"lastLoginAt,omitempty"`
 	LastLoginIP string         `json:"lastLoginIp,omitempty" gorm:"size:45"`

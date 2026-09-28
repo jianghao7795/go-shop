@@ -80,15 +80,15 @@ func registerHandler(db *gorm.DB) gin.HandlerFunc {
 }
 
 // profileJSON 把用户模型转成对外返回的个人资料。
-func profileJSON(user model.User) gin.H {
+func profileJSON(user model.User, perms []string) gin.H {
 	return gin.H{
-		"id":       user.ID,
-		"username": user.Username,
-		"nickname": user.Nickname,
-		"avatar":   user.Avatar,
-		"mobile":   user.Mobile,
-		"email":    user.Email,
-		"role":     user.Role,
+		"id":          user.ID,
+		"username":    user.Username,
+		"nickname":    user.Nickname,
+		"avatar":      user.Avatar,
+		"mobile":      user.Mobile,
+		"email":       user.Email,
+		"permissions": perms,
 	}
 }
 
@@ -104,7 +104,7 @@ func meHandler(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"message": "用户不存在"})
 			return
 		}
-		c.JSON(http.StatusOK, profileJSON(user))
+		c.JSON(http.StatusOK, profileJSON(user, effectivePermissions(db, currentUser(c))))
 	}
 }
 
@@ -149,7 +149,7 @@ func updateProfile(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "读取失败，请稍后重试"})
 			return
 		}
-		c.JSON(http.StatusOK, profileJSON(user))
+		c.JSON(http.StatusOK, profileJSON(user, effectivePermissions(db, username)))
 	}
 }
 
