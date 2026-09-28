@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { showToast } from "vant";
 import { useUserStore } from "../stores/user";
 import http from "../lib/http";
+import { avatarSrc } from "../lib/avatar";
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -16,11 +17,6 @@ const loading = ref(false);
 const uploading = ref(false);
 
 const presetAvatars = ["🐱", "🐶", "🦊", "🐼", "🐰", "🦁", "🐯", "🐸"];
-
-// 判断头像是否为图片 URL（上传路径或 http 链接），否则按 emoji 文本展示。
-function isImageUrl(v: string) {
-  return v.startsWith("/uploads") || v.startsWith("http://") || v.startsWith("https://");
-}
 
 function onPickFile() {
   const input = document.createElement("input");
@@ -87,7 +83,7 @@ async function onSubmit() {
       <van-cell-group inset class="avatar-group">
         <div class="avatar-editor">
           <div class="avatar-preview">
-            <img v-if="isImageUrl(avatar)" :src="avatar" alt="头像" />
+            <img v-if="avatarSrc(avatar)" :src="avatarSrc(avatar)" alt="头像" />
             <span v-else>{{ avatar || "👤" }}</span>
           </div>
           <div class="avatar-btns">

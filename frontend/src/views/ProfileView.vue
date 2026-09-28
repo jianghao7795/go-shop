@@ -3,6 +3,7 @@ import { useRouter } from "vue-router";
 import { showToast } from "vant";
 import { useUserStore } from "../stores/user";
 import { useNotificationStore } from "../stores/notification";
+import { avatarSrc } from "../lib/avatar";
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -20,10 +21,6 @@ function logout() {
 function goOrders(status = "") {
   router.push({ name: "orders", query: status ? { status } : {} });
 }
-
-function isImageUrl(v: string) {
-  return v.startsWith("/uploads") || v.startsWith("http://") || v.startsWith("https://");
-}
 </script>
 
 <template>
@@ -31,7 +28,7 @@ function isImageUrl(v: string) {
     <van-nav-bar title="个人中心" />
     <section class="profile-header">
       <div class="avatar">
-        <img v-if="isImageUrl(userStore.avatar)" :src="userStore.avatar" alt="头像" />
+        <img v-if="avatarSrc(userStore.avatar)" :src="avatarSrc(userStore.avatar)" alt="头像" />
         <span v-else>{{ userStore.avatar || "👤" }}</span>
       </div>
       <div>
