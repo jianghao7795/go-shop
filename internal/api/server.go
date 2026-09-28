@@ -18,7 +18,7 @@ func Start() {
 	databaseReady := err == nil
 	if err != nil {
 		log.Printf("mysql unavailable, serving catalog fallback: %v", err)
-	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}, &model.Coupon{}, &model.Role{}, &model.UserRole{}); migrateErr != nil {
+	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}, &model.Coupon{}, &model.Role{}, &model.UserRole{}, &model.Permission{}, &model.RolePermission{}); migrateErr != nil {
 		log.Printf("mysql migration failed: %v", migrateErr)
 		databaseReady = false
 	} else {
@@ -53,16 +53,31 @@ func Start() {
 		couponStart, couponEnd := model.DefaultCouponPeriod()
 		db.Model(&model.Coupon{}).Where("start_at IS NULL").Update("start_at", couponStart)
 		db.Model(&model.Coupon{}).Where("end_at IS NULL").Update("end_at", couponEnd)
-		// 种子内置角色
+		// 种子权限点
+		for _, p := range model.SeedPermissions {
+			var existing model.Permission
+			if db.Where("code = ?", p.Code).First(&existing).Error != nil {
+				db.Create(&p)
+			}
+		}
+		// 种子 admin 角色并关联全部权限（含旧 roles.permissions JSON 的迁移）
 		var adminRole model.Role
 		if db.Where("name = ?", model.RoleAdmin).First(&adminRole).Error != nil {
-			adminRole = model.Role{Name: model.RoleAdmin, Description: "超级管理员", Permissions: model.AllPermissions}
+			adminRole = model.Role{Name: model.RoleAdmin, Description: "超级管理员"}
 			db.Create(&adminRole)
+		}
+		var allPerms []model.Permission
+		db.Find(&allPerms)
+		var linked int64
+		db.Model(&model.RolePermission{}).Where("role_id = ?", adminRole.ID).Count(&linked)
+		if linked == 0 {
+			for _, p := range allPerms {
+				db.Create(&model.RolePermission{RoleID: adminRole.ID, PermissionID: p.ID})
+			}
 		}
 		var customerRole model.Role
 		if db.Where("name = ?", model.RoleCustomer).First(&customerRole).Error != nil {
-			customerRole = model.Role{Name: model.RoleCustomer, Description: "普通用户", Permissions: []string{}}
-			db.Create(&customerRole)
+			db.Create(&model.Role{Name: model.RoleCustomer, Description: "普通用户"})
 		}
 		// 迁移现有 role='admin' 的用户到 admin 角色
 		var legacyAdmins []model.User
