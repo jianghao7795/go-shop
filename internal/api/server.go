@@ -18,7 +18,7 @@ func Start() {
 	databaseReady := err == nil
 	if err != nil {
 		log.Printf("mysql unavailable, serving catalog fallback: %v", err)
-	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}, &model.Coupon{}); migrateErr != nil {
+	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}, &model.Coupon{}, &model.Role{}, &model.UserRole{}); migrateErr != nil {
 		log.Printf("mysql migration failed: %v", migrateErr)
 		databaseReady = false
 	} else {

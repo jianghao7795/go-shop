@@ -6,12 +6,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// 用户角色。
-const (
-	RoleCustomer = "customer"
-	RoleAdmin    = "admin"
-)
-
 // User 是注册用户的持久化模型，密码以 bcrypt 哈希存储，不通过 JSON 返回。
 type User struct {
 	ID          uint           `json:"id" gorm:"primaryKey"`
