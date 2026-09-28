@@ -9,13 +9,13 @@ const userStore = useUserStore();
   <div class="admin-layout">
     <aside class="admin-sidebar">
       <div class="admin-brand">🛍️ 管理后台</div>
-      <router-link
-        v-for="item in adminMenu"
-        :key="item.path"
-        v-if="!item.perm || userStore.hasPerm(item.perm)"
-        :to="item.path"
-        >{{ item.title }}</router-link
-      >
+      <template v-for="item in adminMenu" :key="item.path">
+        <router-link
+          v-if="!item.perm || userStore.hasPerm(item.perm)"
+          :to="item.path"
+          >{{ item.title }}</router-link
+        >
+      </template>
       <router-link to="/profile">← 返回商城</router-link>
     </aside>
     <main class="admin-main"><router-view /></main>
