@@ -3,7 +3,12 @@ import { onMounted, ref } from "vue";
 import { showToast } from "vant";
 import http from "../lib/http";
 
-interface Coupon { id: number; title: string; amount: number; condition: string; }
+interface Coupon {
+  id: number;
+  title: string;
+  amount: number;
+  condition: string;
+}
 
 const coupons = ref<Coupon[]>([]);
 const loading = ref(false);
@@ -30,7 +35,10 @@ onMounted(load);
     <van-empty v-else-if="!coupons.length" description="暂无优惠券" />
     <div v-else class="coupon-list">
       <div v-for="coupon in coupons" :key="coupon.id" class="coupon-card">
-        <div class="coupon-amount"><span>¥</span>{{ coupon.amount }}</div>
+        <div class="coupon-amount">
+          <span>¥</span>
+          {{ coupon.amount }}
+        </div>
         <div class="coupon-info">
           <h3>{{ coupon.title }}</h3>
           <p>{{ coupon.condition }}</p>
