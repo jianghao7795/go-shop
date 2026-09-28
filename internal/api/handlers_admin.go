@@ -735,6 +735,10 @@ func adminCreateRole(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
 			return
 		}
+		if hasPermission(p.Permissions, model.PermUser) {
+			c.JSON(http.StatusForbidden, gin.H{"message": "不能授予用户管理权限"})
+			return
+		}
 		if db == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
 			return
@@ -775,6 +779,10 @@ func adminUpdateRole(db *gorm.DB) gin.HandlerFunc {
 		}
 		if msg := validateRole(p); msg != "" {
 			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
+			return
+		}
+		if hasPermission(p.Permissions, model.PermUser) {
+			c.JSON(http.StatusForbidden, gin.H{"message": "不能授予用户管理权限"})
 			return
 		}
 		if db == nil {
@@ -885,6 +893,15 @@ func adminSetUserRoles(db *gorm.DB) gin.HandlerFunc {
 		if err := db.First(&model.User{}, id).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"message": "用户不存在"})
 			return
+		}
+		var adminRole model.Role
+		if db.Where("name = ?", model.RoleAdmin).First(&adminRole).Error == nil {
+			for _, rid := range req.RoleIDs {
+				if rid == adminRole.ID {
+					c.JSON(http.StatusForbidden, gin.H{"message": "不能分配内置管理员角色"})
+					return
+				}
+			}
 		}
 		if err := db.Where("user_id = ?", id).Delete(&model.UserRole{}).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
