@@ -690,3 +690,155 @@ func adminSendNotification(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "已发送"})
 	}
 }
+
+type rolePayload struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Permissions []string `json:"permissions"`
+}
+
+func validateRole(p rolePayload) string {
+	if strings.TrimSpace(p.Name) == "" {
+		return "角色名不能为空"
+	}
+	for _, perm := range p.Permissions {
+		if !hasPermission(model.AllPermissions, perm) {
+			return "存在未知权限点: " + perm
+		}
+	}
+	return ""
+}
+
+func adminListRoles(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		var items []model.Role
+		if err := db.Order("id ASC").Find(&items).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "查询失败"})
+			return
+		}
+		c.JSON(http.StatusOK, items)
+	}
+}
+
+func adminCreateRole(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var p rolePayload
+		if err := c.ShouldBindJSON(&p); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "请求格式错误"})
+			return
+		}
+		if msg := validateRole(p); msg != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		if p.Name == model.RoleAdmin || p.Name == model.RoleCustomer {
+			c.JSON(http.StatusConflict, gin.H{"message": "角色名已存在"})
+			return
+		}
+		var existing model.Role
+		if err := db.Where("name = ?", p.Name).First(&existing).Error; err == nil {
+			c.JSON(http.StatusConflict, gin.H{"message": "角色名已存在"})
+			return
+		}
+		perms := p.Permissions
+		if perms == nil {
+			perms = []string{}
+		}
+		item := model.Role{Name: p.Name, Description: p.Description, Permissions: perms}
+		if err := db.Create(&item).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "创建失败"})
+			return
+		}
+		c.JSON(http.StatusOK, item)
+	}
+}
+
+func adminUpdateRole(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "非法角色 ID"})
+			return
+		}
+		var p rolePayload
+		if err := c.ShouldBindJSON(&p); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "请求格式错误"})
+			return
+		}
+		if msg := validateRole(p); msg != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		var existing model.Role
+		if err := db.First(&existing, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "角色不存在"})
+			return
+		}
+		if existing.Name == model.RoleAdmin || existing.Name == model.RoleCustomer {
+			c.JSON(http.StatusForbidden, gin.H{"message": "内置角色不可修改"})
+			return
+		}
+		var dup model.Role
+		if err := db.Where("name = ? AND id != ?", p.Name, id).First(&dup).Error; err == nil {
+			c.JSON(http.StatusConflict, gin.H{"message": "角色名已存在"})
+			return
+		}
+		perms := p.Permissions
+		if perms == nil {
+			perms = []string{}
+		}
+		existing.Name = p.Name
+		existing.Description = p.Description
+		existing.Permissions = perms
+		if err := db.Save(&existing).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
+	}
+}
+
+func adminDeleteRole(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "非法角色 ID"})
+			return
+		}
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		var existing model.Role
+		if err := db.First(&existing, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "角色不存在"})
+			return
+		}
+		if existing.Name == model.RoleAdmin || existing.Name == model.RoleCustomer {
+			c.JSON(http.StatusForbidden, gin.H{"message": "内置角色不可删除"})
+			return
+		}
+		res := db.Delete(&model.Role{}, id)
+		if res.Error != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "删除失败"})
+			return
+		}
+		if res.RowsAffected == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"message": "角色不存在"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+	}
+}

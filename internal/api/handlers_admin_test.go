@@ -1,6 +1,10 @@
 package api
 
-import "testing"
+import (
+	"testing"
+
+	"shop/internal/model"
+)
 
 func TestValidateProduct(t *testing.T) {
 	tests := []struct {
@@ -58,6 +62,27 @@ func TestValidateCoupon(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := validateCoupon(tt.p); (got == "") != tt.ok {
 				t.Fatalf("validateCoupon(%+v)=%q, ok=%v", tt.p, got, tt.ok)
+			}
+		})
+	}
+}
+
+func TestValidateRole(t *testing.T) {
+	tests := []struct {
+		name string
+		p    rolePayload
+		ok   bool
+	}{
+		{"合法", rolePayload{Name: "运营", Permissions: []string{model.PermProduct, model.PermCategory}}, true},
+		{"合法-空权限", rolePayload{Name: "只读"}, true},
+		{"缺名称", rolePayload{Permissions: []string{model.PermProduct}}, false},
+		{"空白名称", rolePayload{Name: "  "}, false},
+		{"未知权限", rolePayload{Name: "运营", Permissions: []string{"foo:bar"}}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := validateRole(tt.p); (got == "") != tt.ok {
+				t.Fatalf("validateRole(%+v)=%q, ok=%v", tt.p, got, tt.ok)
 			}
 		})
 	}
