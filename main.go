@@ -39,7 +39,7 @@ func main() {
 	})
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:  "Wails",
+		Title:  "购选好物",
 		Width:  1000,
 		Height: 618,
 		Mac: application.MacWindow{
