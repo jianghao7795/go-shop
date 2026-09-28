@@ -87,7 +87,7 @@ function previewAvatar() {
         is-link
         @click="router.push('/profile/edit')"
       />
-      <van-cell v-if="userStore.role === 'admin'" title="管理后台" icon="manager-o" is-link @click="router.push('/admin')" />
+      <van-cell v-if="userStore.isAdmin" title="管理后台" icon="manager-o" is-link @click="router.push('/admin')" />
       <van-cell
         title="优惠券"
         icon="coupon-o"

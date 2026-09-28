@@ -46,7 +46,7 @@ router.beforeEach((to) => {
   }
   if (to.path.startsWith("/admin")) {
     if (!userStore.isLoggedIn) return { name: "login", query: { redirect: to.fullPath } };
-    if (userStore.role !== "admin") return { name: "home" };
+    if (userStore.permissions.length === 0) return { name: "home" };
   }
   return;
 });
