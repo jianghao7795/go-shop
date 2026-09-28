@@ -14,6 +14,9 @@ build/android/gen/
 *.exe
 .superpowers/
 
+# 用户上传的头像等文件（运行时生成，勿提交）
+uploads/
+
 # 本地环境变量（含高德 key，勿提交）
 .env
 .env.local
