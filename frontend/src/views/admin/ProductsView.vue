@@ -160,6 +160,7 @@ async function submit() {
 
 async function toggleShelf(p: Product) {
   const next = !p.onShelf;
+  p.onShelf = next;
   try {
     await http.put("/api/admin/products/" + p.id, {
       name: p.name,
@@ -171,20 +172,21 @@ async function toggleShelf(p: Product) {
       category: p.category,
       onShelf: next,
     });
-    p.onShelf = next;
     showToast(next ? "已上架" : "已下架");
   } catch (err) {
+    p.onShelf = !next;
     showToast(errMsg(err, "操作失败"));
   }
 }
 
 async function toggleFeatured(p: Product) {
   const next = !p.featured;
+  p.featured = next;
   try {
     await http.put("/api/admin/products/" + p.id + "/featured", { featured: next });
-    p.featured = next;
     showToast(next ? "已设为优选" : "已取消优选");
   } catch (err) {
+    p.featured = !next;
     showToast(errMsg(err, "操作失败"));
   }
 }
@@ -244,15 +246,15 @@ onMounted(() => {
           <td>
             <Switch
               :model-value="p.onShelf"
-              size="20"
-              @update:model-value="toggleShelf(p)"
+              size="20px"
+              @change="toggleShelf(p)"
             />
           </td>
           <td>
             <Switch
               :model-value="p.featured"
-              size="20"
-              @update:model-value="toggleFeatured(p)"
+              size="20px"
+              @change="toggleFeatured(p)"
             />
           </td>
           <td class="admin-ops">
