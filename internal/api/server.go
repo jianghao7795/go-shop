@@ -58,6 +58,7 @@ func Start() {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery(), corsMiddleware())
+	router.Static("/uploads", "./uploads")
 
 	jwtMiddleware, err := auth.New(db)
 	if err != nil {
@@ -72,6 +73,7 @@ func Start() {
 	protected.Use(jwtMiddleware.MiddlewareFunc())
 	protected.GET("/me", meHandler(db))
 	protected.PUT("/profile", updateProfile(db))
+	protected.POST("/profile/avatar", uploadAvatar())
 	protected.GET("/addresses", listAddresses(db))
 	protected.POST("/addresses", createAddress(db))
 	protected.PUT("/addresses/:id", updateAddress(db))

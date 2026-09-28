@@ -20,6 +20,10 @@ function logout() {
 function goOrders(status = "") {
   router.push({ name: "orders", query: status ? { status } : {} });
 }
+
+function isImageUrl(v: string) {
+  return v.startsWith("/uploads") || v.startsWith("http://") || v.startsWith("https://");
+}
 </script>
 
 <template>
@@ -27,8 +31,8 @@ function goOrders(status = "") {
     <van-nav-bar title="个人中心" />
     <section class="profile-header">
       <div class="avatar">
-        <img v-if="userStore.avatar" :src="userStore.avatar" alt="头像" />
-        <span v-else>👤</span>
+        <img v-if="isImageUrl(userStore.avatar)" :src="userStore.avatar" alt="头像" />
+        <span v-else>{{ userStore.avatar || "👤" }}</span>
       </div>
       <div>
         <h2>{{ userStore.isLoggedIn ? userStore.displayName : "优选用户" }}</h2>

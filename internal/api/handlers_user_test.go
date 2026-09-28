@@ -25,8 +25,9 @@ func TestValidateProfile(t *testing.T) {
 		{"邮箱缺@", profileUpdate{Email: "ab.com"}, false},
 		{"邮箱缺域名点", profileUpdate{Email: "a@b"}, false},
 
-		{"头像无协议", profileUpdate{Avatar: "example.com/a.png"}, false},
-		{"头像非http协议", profileUpdate{Avatar: "ftp://example.com/a.png"}, false},
+		{"上传头像路径", profileUpdate{Avatar: "/uploads/avatars/a.png"}, true},
+		{"emoji头像", profileUpdate{Avatar: "🐱"}, true},
+		{"头像过长", profileUpdate{Avatar: strings.Repeat("a", 256)}, false},
 
 		{"昵称超长", profileUpdate{Nickname: strings.Repeat("a", 65)}, false},
 	}

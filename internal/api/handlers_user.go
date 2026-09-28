@@ -1,9 +1,13 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -30,10 +34,8 @@ func validateProfile(p profileUpdate) string {
 	if len([]rune(strings.TrimSpace(p.Nickname))) > 64 {
 		return "昵称不能超过 64 个字符"
 	}
-	if p.Avatar != "" {
-		if len(p.Avatar) > 255 || (!strings.HasPrefix(p.Avatar, "http://") && !strings.HasPrefix(p.Avatar, "https://")) {
-			return "头像需要是 http(s) 开头的链接"
-		}
+	if len(p.Avatar) > 255 {
+		return "头像过长"
 	}
 	if p.Mobile != "" && !mobileRe.MatchString(p.Mobile) {
 		return "手机号格式不正确"
@@ -148,5 +150,37 @@ func updateProfile(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, profileJSON(user))
+	}
+}
+
+// uploadAvatar 处理头像上传，保存到 uploads/avatars/ 并返回可访问的路径。
+func uploadAvatar() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		file, err := c.FormFile("file")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "请选择图片文件"})
+			return
+		}
+		ext := strings.ToLower(filepath.Ext(file.Filename))
+		allowed := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
+		if !allowed[ext] {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "仅支持 jpg/png/gif/webp 图片"})
+			return
+		}
+		if file.Size > 2<<20 {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "图片不能超过 2MB"})
+			return
+		}
+		dir := "uploads/avatars"
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "保存失败"})
+			return
+		}
+		filename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
+		if err := c.SaveUploadedFile(file, filepath.Join(dir, filename)); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "保存失败"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"url": "/uploads/avatars/" + filename})
 	}
 }
