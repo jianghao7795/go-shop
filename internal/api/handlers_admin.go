@@ -3,6 +3,7 @@ package api
 import (
 	"math/rand"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -896,21 +897,36 @@ func adminSetUserRoles(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"message": "用户不存在"})
 			return
 		}
-		var adminRole model.Role
-		if db.Where("name = ?", model.RoleAdmin).First(&adminRole).Error == nil {
-			for _, rid := range req.RoleIDs {
-				if rid == adminRole.ID {
-					c.JSON(http.StatusForbidden, gin.H{"message": "不能分配内置管理员角色"})
-					return
-				}
+		// 校验所有角色都存在
+		if len(req.RoleIDs) > 0 {
+			var cnt int64
+			db.Model(&model.Role{}).Where("id IN ?", req.RoleIDs).Count(&cnt)
+			if int(cnt) != len(req.RoleIDs) {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "存在无效角色"})
+				return
 			}
 		}
-		if err := db.Where("user_id = ?", id).Delete(&model.UserRole{}).Error; err != nil {
+		var adminRole model.Role
+		if db.Where("name = ?", model.RoleAdmin).First(&adminRole).Error == nil {
+			if slices.Contains(req.RoleIDs, adminRole.ID) {
+				c.JSON(http.StatusForbidden, gin.H{"message": "不能分配内置管理员角色"})
+				return
+			}
+		}
+		// 事务内删除并重建，避免部分写入
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Where("user_id = ?", id).Delete(&model.UserRole{}).Error; err != nil {
+				return err
+			}
+			for _, rid := range req.RoleIDs {
+				if err := tx.Create(&model.UserRole{UserID: uint(id), RoleID: rid}).Error; err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
 			return
-		}
-		for _, rid := range req.RoleIDs {
-			db.Create(&model.UserRole{UserID: uint(id), RoleID: rid})
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "已更新"})
 	}
