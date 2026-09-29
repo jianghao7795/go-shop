@@ -16,6 +16,7 @@ const loading = ref(false);
 const tabs = [
   { name: "", title: "全部" },
   { name: "pending", title: "待付款" },
+  { name: "paid", title: "待发货" },
   { name: "shipped", title: "待收货" },
   { name: "completed", title: "待评价" },
   { name: "aftersale", title: "售后" },
@@ -23,6 +24,7 @@ const tabs = [
 
 const statusMap: Record<string, { text: string; color: string }> = {
   pending: { text: "待付款", color: "#ff976a" },
+  paid: { text: "待发货", color: "#7c4dff" },
   shipped: { text: "待收货", color: "#1989fa" },
   completed: { text: "待评价", color: "#07c160" },
   aftersale: { text: "售后", color: "#ee0a24" },
@@ -79,7 +81,7 @@ onMounted(() => {
         </van-cell>
         <van-cell title="合计" :value="'¥' + order.amount.toFixed(2)" />
         <div class="order-actions">
-          <van-button v-if="order.status === 'pending'" size="small" round type="danger" @click="changeStatus(order, 'shipped', '支付')">去支付</van-button>
+          <van-button v-if="order.status === 'pending'" size="small" round type="danger" @click="router.push('/pay/' + order.id)">去支付</van-button>
           <van-button v-if="order.status === 'shipped'" size="small" round type="primary" @click="changeStatus(order, 'completed', '确认收货')">确认收货</van-button>
           <van-button v-if="order.status === 'completed'" size="small" round type="success" @click="changeStatus(order, 'finished', '评价')">评价</van-button>
         </div>

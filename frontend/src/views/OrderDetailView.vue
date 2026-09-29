@@ -68,6 +68,7 @@ async function renderMap() {
 
 const statusMap: Record<string, { text: string; color: string }> = {
   pending: { text: "待付款", color: "#ff976a" },
+  paid: { text: "待发货", color: "#7c4dff" },
   shipped: { text: "待收货", color: "#1989fa" },
   completed: { text: "待评价", color: "#07c160" },
   aftersale: { text: "售后", color: "#ee0a24" },
@@ -131,7 +132,7 @@ onMounted(async () => {
         <van-cell title="合计" :value="'¥' + order.amount.toFixed(2)" />
       </van-cell-group>
       <div class="detail-actions-bar">
-        <van-button v-if="order.status === 'pending'" round type="danger" @click="changeStatus('shipped', '支付')">去支付</van-button>
+        <van-button v-if="order.status === 'pending'" round type="danger" @click="$router.push('/pay/' + order.id)">去支付</van-button>
         <van-button v-if="order.status === 'shipped'" round type="primary" @click="changeStatus('completed', '确认收货')">确认收货</van-button>
         <van-button v-if="order.status === 'completed'" round type="success" @click="changeStatus('finished', '评价')">评价</van-button>
       </div>

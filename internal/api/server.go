@@ -119,6 +119,7 @@ func Start() {
 	protected.GET("/orders", listOrders(db))
 	protected.POST("/orders", createOrder(db))
 	protected.GET("/orders/:id", getOrder(db))
+	protected.POST("/orders/:id/pay", payOrder(db))
 	protected.PUT("/orders/:id/status", updateOrderStatus(db, hub))
 	protected.GET("/coupons", listCoupons(db, databaseReady))
 	protected.GET("/notifications", listNotifications(db))

@@ -452,7 +452,7 @@ func adminUpdateOrderStatus(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
 			return
 		}
 		switch req.Status {
-		case model.OrderStatusPending, model.OrderStatusShipped, model.OrderStatusCompleted, model.OrderStatusAftersale, model.OrderStatusFinished:
+		case model.OrderStatusPending, model.OrderStatusPaid, model.OrderStatusShipped, model.OrderStatusCompleted, model.OrderStatusAftersale, model.OrderStatusFinished:
 		default:
 			c.JSON(http.StatusBadRequest, gin.H{"message": "非法状态"})
 			return

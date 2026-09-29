@@ -9,6 +9,7 @@ import (
 // 订单状态。
 const (
 	OrderStatusPending   = "pending"   // 待付款
+	OrderStatusPaid      = "paid"      // 待发货
 	OrderStatusShipped   = "shipped"   // 待收货
 	OrderStatusCompleted = "completed" // 待评价
 	OrderStatusAftersale = "aftersale" // 售后

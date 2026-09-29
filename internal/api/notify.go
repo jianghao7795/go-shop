@@ -12,6 +12,7 @@ import (
 // statusText 是订单状态到中文文案的映射，与前端 OrderListView 的 statusMap 保持一致。
 var statusText = map[string]string{
 	model.OrderStatusPending:   "待付款",
+	model.OrderStatusPaid:      "待发货",
 	model.OrderStatusShipped:   "待收货",
 	model.OrderStatusCompleted: "待评价",
 	model.OrderStatusAftersale: "售后",

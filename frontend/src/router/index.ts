@@ -16,6 +16,7 @@ const router = createRouter({
     { path: "/register", name: "register", component: () => import("../views/RegisterView.vue"), meta: { title: "注册", hideTabbar: true } },
     { path: "/orders", name: "orders", component: () => import("../views/OrderListView.vue"), meta: { title: "我的订单", hideTabbar: true, requiresAuth: true } },
     { path: "/orders/:id", name: "order-detail", component: () => import("../views/OrderDetailView.vue"), meta: { title: "订单详情", hideTabbar: true, requiresAuth: true } },
+    { path: "/pay/:id", name: "pay", component: () => import("../views/PayView.vue"), meta: { title: "收银台", hideTabbar: true, requiresAuth: true } },
     { path: "/address", name: "address", component: () => import("../views/AddressListView.vue"), meta: { title: "收货地址", hideTabbar: true, requiresAuth: true } },
     { path: "/address/edit", name: "address-edit", component: () => import("../views/AddressEditView.vue"), meta: { title: "编辑地址", hideTabbar: true, requiresAuth: true } },
     { path: "/checkout", name: "checkout", component: () => import("../views/CheckoutView.vue"), meta: { title: "确认订单", hideTabbar: true, requiresAuth: true } },
