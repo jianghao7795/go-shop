@@ -2,7 +2,7 @@
 import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
-import { showToast } from "vant";
+import { Rate, showToast } from "vant";
 import { useShopCart, type ShopProduct } from "../stores/shop";
 import http from "../lib/http";
 
@@ -15,6 +15,9 @@ const product = ref<ShopProduct | null>(null);
 const quantity = ref(1);
 const loading = ref(true);
 const error = ref("");
+const reviews = ref<any[]>([]);
+const avg = ref(0);
+const reviewCount = ref(0);
 
 async function loadProduct() {
   loading.value = true;
@@ -40,7 +43,21 @@ function buyNow() {
   router.push("/cart");
 }
 
-onMounted(loadProduct);
+async function loadReviews() {
+  try {
+    const res = await http.get("/api/products/" + route.params.id + "/reviews");
+    reviews.value = res.data.reviews || [];
+    avg.value = res.data.average || 0;
+    reviewCount.value = res.data.count || 0;
+  } catch {
+    reviews.value = [];
+  }
+}
+
+onMounted(() => {
+  loadProduct();
+  loadReviews();
+});
 </script>
 
 <template>
@@ -64,6 +81,21 @@ onMounted(loadProduct);
           <van-cell title="购买数量"><template #value><van-stepper v-model="quantity" min="1" /></template></van-cell>
         </van-cell-group>
       </section>
+      <section class="detail-reviews">
+        <div class="reviews-head">
+          <h3>商品评价</h3>
+          <span>{{ reviewCount }} 条 · 均分 {{ avg.toFixed(1) }}</span>
+        </div>
+        <van-empty v-if="!reviews.length" description="暂无评价" />
+        <div v-for="r in reviews" :key="r.id" class="review-item">
+          <div class="review-meta">
+            <span class="review-user">{{ r.userId }}</span>
+            <Rate :model-value="r.rating" readonly size="14" color="#ff4d67" />
+          </div>
+          <p class="review-content">{{ r.content || "此用户没有填写文字评价" }}</p>
+        </div>
+      </section>
+
       <van-action-bar>
         <van-action-bar-icon icon="service-o" text="客服" @click="showToast('客服暂未开通')" />
         <van-action-bar-icon icon="cart-o" text="购物车" :badge="cartItems.length || undefined" to="/cart" />
@@ -74,4 +106,48 @@ onMounted(loadProduct);
     </template>
   </div>
 </template>
+
+<style scoped>
+.detail-reviews {
+  margin: 12px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 10px;
+}
+.reviews-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.reviews-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.reviews-head span {
+  font-size: 12px;
+  color: #969ba5;
+}
+.review-item {
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f1f4;
+}
+.review-item:last-child {
+  border-bottom: none;
+}
+.review-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.review-user {
+  font-size: 13px;
+  color: #646a73;
+}
+.review-content {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: #1f2430;
+}
+</style>
 

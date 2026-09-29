@@ -18,7 +18,7 @@ func Start() {
 	databaseReady := err == nil
 	if err != nil {
 		log.Printf("mysql unavailable, serving catalog fallback: %v", err)
-	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}, &model.Coupon{}, &model.Role{}, &model.UserRole{}, &model.Permission{}, &model.RolePermission{}); migrateErr != nil {
+	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}, &model.Coupon{}, &model.Role{}, &model.UserRole{}, &model.Permission{}, &model.RolePermission{}, &model.Review{}); migrateErr != nil {
 		log.Printf("mysql migration failed: %v", migrateErr)
 		databaseReady = false
 	} else {
@@ -120,6 +120,7 @@ func Start() {
 	protected.POST("/orders", createOrder(db))
 	protected.GET("/orders/:id", getOrder(db))
 	protected.POST("/orders/:id/pay", payOrder(db))
+	protected.POST("/orders/:id/reviews", submitOrderReviews(db))
 	protected.PUT("/orders/:id/status", updateOrderStatus(db, hub))
 	protected.GET("/coupons", listCoupons(db, databaseReady))
 	protected.GET("/notifications", listNotifications(db))
@@ -170,6 +171,7 @@ func Start() {
 	router.GET("/api/health", healthHandler(databaseReady))
 	router.GET("/api/categories", listCategories(db, databaseReady))
 	router.GET("/api/products/:id", productDetailHandler(db, databaseReady))
+	router.GET("/api/products/:id/reviews", listProductReviews(db))
 	router.GET("/api/products", productsHandler(db, databaseReady))
 
 	go startSimulators(db, hub)

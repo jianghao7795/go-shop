@@ -83,7 +83,7 @@ onMounted(() => {
         <div class="order-actions">
           <van-button v-if="order.status === 'pending'" size="small" round type="danger" @click="router.push('/pay/' + order.id)">去支付</van-button>
           <van-button v-if="order.status === 'shipped'" size="small" round type="primary" @click="changeStatus(order, 'completed', '确认收货')">确认收货</van-button>
-          <van-button v-if="order.status === 'completed'" size="small" round type="success" @click="changeStatus(order, 'finished', '评价')">评价</van-button>
+          <van-button v-if="order.status === 'completed'" size="small" round type="success" @click="router.push('/review/' + order.id)">评价</van-button>
         </div>
       </van-cell-group>
     </template>

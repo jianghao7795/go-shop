@@ -134,7 +134,7 @@ onMounted(async () => {
       <div class="detail-actions-bar">
         <van-button v-if="order.status === 'pending'" round type="danger" @click="$router.push('/pay/' + order.id)">去支付</van-button>
         <van-button v-if="order.status === 'shipped'" round type="primary" @click="changeStatus('completed', '确认收货')">确认收货</van-button>
-        <van-button v-if="order.status === 'completed'" round type="success" @click="changeStatus('finished', '评价')">评价</van-button>
+        <van-button v-if="order.status === 'completed'" round type="success" @click="$router.push('/review/' + order.id)">评价</van-button>
       </div>
     </template>
   </div>
