@@ -56,6 +56,23 @@ export const useNotificationStore = defineStore("notification", () => {
     unread.value = 0;
   }
 
+  async function remove(id: number) {
+    const item = items.value.find(i => i.id === id);
+    items.value = items.value.filter(i => i.id !== id);
+    if (item && !item.read) unread.value = Math.max(0, unread.value - 1);
+    try {
+      await http.delete("/api/notifications/" + id);
+    } catch { /* 忽略 */ }
+  }
+
+  async function clearAll() {
+    items.value = [];
+    unread.value = 0;
+    try {
+      await http.delete("/api/notifications");
+    } catch { /* 忽略 */ }
+  }
+
   function connect() {
     if (!userStore.token || source) return;
     source = new EventSource(apiBase() + "/api/notifications/stream?token=" + encodeURIComponent(userStore.token));
@@ -77,5 +94,5 @@ export const useNotificationStore = defineStore("notification", () => {
     }
   }
 
-  return { items, unread, fetchList, fetchUnread, markRead, markAllRead, connect, disconnect };
+  return { items, unread, fetchList, fetchUnread, markRead, markAllRead, remove, clearAll, connect, disconnect };
 });

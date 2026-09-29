@@ -110,3 +110,30 @@ func markAllNotificationsRead(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "已读"})
 	}
 }
+
+func deleteNotification(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "无效的通知"})
+			return
+		}
+		db.Where("id = ? AND user_id = ?", id, currentUser(c)).Delete(&model.Notification{})
+		c.JSON(http.StatusOK, gin.H{"message": "已删除"})
+	}
+}
+
+func clearNotifications(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		db.Where("user_id = ?", currentUser(c)).Delete(&model.Notification{})
+		c.JSON(http.StatusOK, gin.H{"message": "已清空"})
+	}
+}

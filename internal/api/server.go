@@ -127,6 +127,8 @@ func Start() {
 	protected.GET("/notifications/unread", unreadCount(db))
 	protected.PUT("/notifications/read-all", markAllNotificationsRead(db))
 	protected.PUT("/notifications/:id/read", markNotificationRead(db))
+	protected.DELETE("/notifications/:id", deleteNotification(db))
+	protected.DELETE("/notifications", clearNotifications(db))
 
 	admin := router.Group("/api/admin")
 	admin.Use(jwtMiddleware.MiddlewareFunc())
