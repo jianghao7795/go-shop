@@ -36,7 +36,6 @@ async function loadCategories() {
   }
 }
 const activeCategory = ref("all");
-const search = ref("");
 const router = useRouter();
 const userStore = useUserStore();
 const { add: addToCartItem } = useShopCart();
@@ -50,7 +49,6 @@ async function loadProducts() {
   loadError.value = "";
   try {
     const params = new URLSearchParams();
-    if (search.value.trim()) params.set("search", search.value.trim());
     if (activeCategory.value !== "all") params.set("category", activeCategory.value);
     const qs = params.toString();
     const res = await http.get("/api/products" + (qs ? "?" + qs : ""));
@@ -89,11 +87,6 @@ function onRightClick() {
   else router.push({ name: "login", query: { redirect: "/" } });
 }
 
-let timer: number | undefined;
-watch(search, () => {
-  if (timer) window.clearTimeout(timer);
-  timer = window.setTimeout(loadProducts, 300);
-});
 watch(activeCategory, loadProducts);
 
 onMounted(() => {
@@ -106,7 +99,7 @@ onMounted(() => {
 <template>
   <div class="shop-page">
     <van-nav-bar title="优选商城" left-text="城市生活" :right-text="userStore.isLoggedIn ? userStore.username : '登录'" @click-right="onRightClick" />
-    <van-search v-model="search" shape="round" placeholder="搜索商品、品牌" />
+    <van-search shape="round" placeholder="搜索商品、品牌" readonly @click-input="router.push('/search')" />
     <main class="shop-content">
       <!-- <van-swipe class="hero" :autoplay="3500" indicator-color="white" lazy-render>
         <van-swipe-item v-for="(banner, index) in ['今日特惠 · 满199减30', '春日焕新 · 新品低至5折', '品质生活 · 会员专享价']" :key="banner">
