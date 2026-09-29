@@ -26,8 +26,8 @@ function toVantCoupon(c: Coupon): VantCoupon {
 
 const router = useRouter();
 const shopCart = useShopCart();
-const { cartItems, total } = storeToRefs(shopCart);
-const { clear, increase, decrease, remove } = shopCart;
+const { checkedItems, checkedTotal } = storeToRefs(shopCart);
+const { removeChecked, increase, decrease, remove } = shopCart;
 
 const addresses = ref<Address[]>([]);
 const selectedAddressId = ref<number | null>(null);
@@ -35,8 +35,8 @@ const coupons = ref<Coupon[]>([]);
 const showCouponPopup = ref(false);
 const chosenCoupon = ref(-1);
 
-const availableCoupons = computed(() => coupons.value.filter(c => total.value >= c.minAmount).map(toVantCoupon));
-const disabledCoupons = computed(() => coupons.value.filter(c => total.value < c.minAmount).map(c => ({ ...toVantCoupon(c), reason: "未达使用门槛" })));
+const availableCoupons = computed(() => coupons.value.filter(c => checkedTotal.value >= c.minAmount).map(toVantCoupon));
+const disabledCoupons = computed(() => coupons.value.filter(c => checkedTotal.value < c.minAmount).map(c => ({ ...toVantCoupon(c), reason: "未达使用门槛" })));
 
 async function onMinus(item: { product: ShopProduct; quantity: number }) {
   if (item.quantity <= 1) {
@@ -58,9 +58,9 @@ const selectedAddress = computed(() => {
 
 const selectedCoupon = computed(() => chosenCoupon.value >= 0 ? availableCoupons.value[chosenCoupon.value] || null : null);
 
-const discount = computed(() => selectedCoupon.value ? Math.min(selectedCoupon.value.value / 100, total.value) : 0);
+const discount = computed(() => selectedCoupon.value ? Math.min(selectedCoupon.value.value / 100, checkedTotal.value) : 0);
 
-const payAmount = computed(() => Math.max(0, total.value - discount.value));
+const payAmount = computed(() => Math.max(0, checkedTotal.value - discount.value));
 
 async function loadAddresses() {
   try {
@@ -84,11 +84,11 @@ function onCouponChange(index: number) {
 
 async function submitOrder() {
   const addr = selectedAddress.value;
-  if (!cartItems.value.length) { showToast("购物车为空"); return; }
+  if (!checkedItems.value.length) { showToast("请选择要结算的商品"); return; }
   if (!addr) { showToast("请先添加收货地址"); router.push("/address/edit"); return; }
   submitting.value = true;
   try {
-    const items = cartItems.value.map(it => ({
+    const items = checkedItems.value.map(it => ({
       productId: it.product.id,
       name: it.product.name,
       price: it.product.price,
@@ -97,7 +97,7 @@ async function submitOrder() {
       color: it.product.color,
     }));
     await http.post("/api/orders", { addressId: addr.id, couponId: selectedCoupon.value ? selectedCoupon.value.id : 0, items });
-    clear();
+    removeChecked();
     localStorage.removeItem("shop_checkout_address_id");
     selectedAddressId.value = null;
     showToast("下单成功");
@@ -124,7 +124,7 @@ onActivated(() => {
 <template>
   <div class="sub-page">
     <van-nav-bar title="确认订单" left-arrow @click-left="$router.back()" />
-    <van-empty v-if="!cartItems.length" description="购物车为空" />
+    <van-empty v-if="!checkedItems.length" description="请选择要结算的商品" />
     <template v-else>
       <van-cell-group inset class="checkout-address">
         <van-cell is-link @click="router.push('/address?select=1')">
@@ -141,7 +141,7 @@ onActivated(() => {
         <van-coupon-cell title="优惠券" :coupons="availableCoupons" :chosen-coupon="chosenCoupon" @click="showCouponPopup = true" />
       </van-cell-group>
       <van-cell-group inset class="checkout-items">
-        <van-cell v-for="item in cartItems" :key="item.product.id" :title="item.product.name">
+        <van-cell v-for="item in checkedItems" :key="item.product.id" :title="item.product.name">
           <template #icon><div class="cart-thumb" :style="{ background: item.product.color }">{{ item.product.emoji }}</div></template>
           <template #label>单价 ¥{{ item.product.price.toFixed(2) }}</template>
           <template #value>
@@ -153,7 +153,7 @@ onActivated(() => {
         </van-cell>
       </van-cell-group>
       <div class="checkout-total">
-        <div class="checkout-total-row"><span>商品合计</span><span>¥{{ total.toFixed(2) }}</span></div>
+        <div class="checkout-total-row"><span>商品合计</span><span>¥{{ checkedTotal.toFixed(2) }}</span></div>
         <div v-if="discount > 0" class="checkout-total-row"><span>优惠</span><span class="checkout-discount">-¥{{ discount.toFixed(2) }}</span></div>
         <div class="checkout-total-row"><span>实付</span><b>¥{{ payAmount.toFixed(2) }}</b></div>
       </div>

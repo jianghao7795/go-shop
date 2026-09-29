@@ -7,10 +7,9 @@ import { useShopCart, type ShopProduct } from "../stores/shop";
 
 const router = useRouter();
 const shopCart = useShopCart();
-const { cartItems, count, total } = storeToRefs(shopCart);
-const { increase, decrease, remove } = shopCart;
+const { cartItems, checkedCount, checkedTotal, allChecked } = storeToRefs(shopCart);
+const { increase, decrease, toggleChecked, setAllChecked, remove, removeChecked } = shopCart;
 const editing = ref(false);
-const selected = ref<number[]>([]);
 
 async function onMinus(item: { product: ShopProduct; quantity: number }) {
   if (item.quantity <= 1) {
@@ -24,30 +23,21 @@ async function onMinus(item: { product: ShopProduct; quantity: number }) {
 }
 
 function checkout() {
-  if (!count.value) return;
+  if (!checkedCount.value) return;
   router.push("/checkout");
 }
 
 function toggleEdit() {
   editing.value = !editing.value;
-  selected.value = [];
-}
-
-function toggleSelect(id: number) {
-  const idx = selected.value.indexOf(id);
-  if (idx >= 0) selected.value.splice(idx, 1);
-  else selected.value.push(id);
 }
 
 function toggleAll() {
-  if (selected.value.length === cartItems.value.length) selected.value = [];
-  else selected.value = cartItems.value.map(it => it.product.id);
+  setAllChecked(!allChecked.value);
 }
 
-function removeSelected() {
-  if (!selected.value.length) return;
-  remove(selected.value);
-  selected.value = [];
+function removeCheckedItems() {
+  if (!checkedCount.value) return;
+  removeChecked();
   editing.value = false;
   showToast("已删除");
 }
@@ -64,7 +54,7 @@ function removeSelected() {
         <van-cell v-for="item in cartItems" :key="item.product.id">
           <template #icon>
             <div class="cart-row">
-              <van-checkbox v-if="editing" :model-value="selected.includes(item.product.id)" @click="toggleSelect(item.product.id)" />
+              <van-checkbox :model-value="item.checked" @click="toggleChecked(item.product.id)" />
               <div class="cart-thumb" :style="{ background: item.product.color }">{{ item.product.emoji }}</div>
             </div>
           </template>
@@ -73,13 +63,13 @@ function removeSelected() {
         </van-cell>
       </van-cell-group>
       <div class="cart-submit">
+        <van-checkbox :model-value="allChecked" @click="toggleAll">全选</van-checkbox>
         <template v-if="editing">
-          <van-checkbox :model-value="cartItems.length > 0 && selected.length === cartItems.length" @click="toggleAll">全选</van-checkbox>
-          <van-button round type="danger" :disabled="!selected.length" @click="removeSelected">删除选中</van-button>
+          <van-button round type="danger" :disabled="!checkedCount" @click="removeCheckedItems">删除选中</van-button>
         </template>
         <template v-else>
-          <span>合计 <b>¥{{ total.toFixed(2) }}</b></span>
-          <van-button round type="danger" @click="checkout">去结算 ({{ count }})</van-button>
+          <span>合计 <b>¥{{ checkedTotal.toFixed(2) }}</b></span>
+          <van-button round type="danger" :disabled="!checkedCount" @click="checkout">去结算 ({{ checkedCount }})</van-button>
         </template>
       </div>
     </template>
