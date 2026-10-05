@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -81,6 +83,56 @@ func TestMarkPaidIdempotent(t *testing.T) {
 	}
 	if got.Status != model.OrderStatusPaid {
 		t.Fatalf("status = %q, want paid", got.Status)
+	}
+}
+
+// TestMarkPaidConcurrent 用文件库 + WAL 验证并发 markPaid 只落一次库，不互相覆盖。
+func TestMarkPaidConcurrent(t *testing.T) {
+	dir := t.TempDir()
+	db, err := gorm.Open(sqlite.Open(filepath.Join(dir, "test.db")+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db.DB: %v", err)
+	}
+	defer sqlDB.Close() // 关闭连接，否则 Windows 下 TempDir 清理会因文件占用失败
+	if err := db.AutoMigrate(&model.Order{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	order := model.Order{OrderNo: "OCONC", UserID: "u1", Status: model.OrderStatusPending, Amount: 1.0}
+	if err := db.Create(&order).Error; err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+
+	const n = 20
+	var wg sync.WaitGroup
+	errs := make([]error, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs[i] = markPaid(db, order.ID, fmt.Sprintf("trade-%d", i))
+		}(i)
+	}
+	wg.Wait()
+	for i, e := range errs {
+		if e != nil {
+			t.Fatalf("markPaid #%d: %v", i, e)
+		}
+	}
+
+	var got model.Order
+	db.First(&got, order.ID)
+	if got.Status != model.OrderStatusPaid {
+		t.Fatalf("status = %q, want paid", got.Status)
+	}
+	if got.PaidAt == nil {
+		t.Fatal("paidAt is nil")
+	}
+	if !strings.HasPrefix(got.TradeNo, "trade-") {
+		t.Fatalf("tradeNo = %q, want one of trade-0..%d", got.TradeNo, n-1)
 	}
 }
 
