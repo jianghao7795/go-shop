@@ -97,11 +97,12 @@ func TestLoadAlipayConfigSet(t *testing.T) {
 	t.Setenv("ALIPAY_PRIVATE_KEY", "pk")
 	t.Setenv("ALIPAY_PUBLIC_KEY", "pub")
 	t.Setenv("ALIPAY_PRODUCTION", "true")
+	t.Setenv("ALIPAY_NOTIFY_URL", "https://example.com/notify")
 	cfg, ok := loadAlipayConfig()
 	if !ok {
 		t.Fatal("expected configured")
 	}
-	if cfg.appID != "app-1" || cfg.privateKey != "pk" || cfg.publicKey != "pub" || !cfg.production {
+	if cfg.appID != "app-1" || cfg.privateKey != "pk" || cfg.publicKey != "pub" || !cfg.production || cfg.notifyURL != "https://example.com/notify" {
 		t.Fatalf("cfg = %+v", cfg)
 	}
 }
@@ -387,5 +388,65 @@ func TestNotifyNonSuccessStatus(t *testing.T) {
 	db.First(&got, order.ID)
 	if got.Status != model.OrderStatusPending {
 		t.Fatalf("TRADE_CLOSED 不应标记支付: %+v", got)
+	}
+}
+
+// makeReadOnly 把测试库设为只读，使后续写操作（markPaid 的 UPDATE）失败，用于验证错误传播。
+func makeReadOnly(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if err := db.Exec("PRAGMA query_only = ON").Error; err != nil {
+		t.Fatalf("set read-only: %v", err)
+	}
+}
+
+func TestPayOrderStatusMarkPaidError(t *testing.T) {
+	db := newTestDB(t)
+	order := model.Order{OrderNo: "O204", UserID: "", Status: model.OrderStatusPending}
+	db.Create(&order)
+	makeReadOnly(t, db)
+	payer := &mockPayer{query: func(ctx context.Context, o string) (string, string, error) {
+		return "TRADE_SUCCESS", "trade-x", nil
+	}}
+	c, w := payStatusCtx(t, order.ID)
+	payOrderStatus(db, payer)(c)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 when markPaid fails (不能谎报 paid)", w.Code)
+	}
+}
+
+func TestNotifyMarkPaidError(t *testing.T) {
+	db := newTestDB(t)
+	order := model.Order{OrderNo: "O303", UserID: "u1", Status: model.OrderStatusPending}
+	db.Create(&order)
+	makeReadOnly(t, db)
+	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, error) {
+		return "TRADE_SUCCESS", "trade-303", "O303", nil
+	}}
+	c, w := notifyCtx(t)
+	handleAlipayNotify(db, payer)(c)
+
+	if w.Body.String() == "success" {
+		t.Fatal("markPaid 失败不应 ack success（否则支付宝不再重试）")
+	}
+}
+
+func TestBuildPrecreateSetsNotifyURL(t *testing.T) {
+	p := buildPrecreate("O1", "19.90", "subject", "https://example.com/notify")
+	if p.OutTradeNo != "O1" || p.TotalAmount != "19.90" || p.Subject != "subject" || p.NotifyURL != "https://example.com/notify" {
+		t.Fatalf("param = %+v", p)
+	}
+}
+
+func TestPayOrderStatusNonPending(t *testing.T) {
+	db := newTestDB(t)
+	order := model.Order{OrderNo: "O205", UserID: "", Status: model.OrderStatusShipped}
+	db.Create(&order)
+	payer := &mockPayer{}
+	c, w := payStatusCtx(t, order.ID)
+	payOrderStatus(db, payer)(c)
+
+	if got := payStatusOf(t, w); got != "paid" {
+		t.Fatalf("status = %q, want paid（非待付款视为已完成支付流程）", got)
 	}
 }

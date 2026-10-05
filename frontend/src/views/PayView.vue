@@ -18,14 +18,10 @@ async function load() {
   try {
     const res = await http.get("/api/orders/" + route.params.id);
     order.value = res.data;
-    if (order.value.status === "paid") {
+    if (order.value.status !== "pending") {
+      // 已支付或后续状态（paid/shipped/completed/finished/aftersale）→ 视为已完成支付
       showToast("订单已支付");
       router.replace("/orders");
-      return;
-    }
-    if (order.value.status !== "pending") {
-      errorMsg.value = "订单状态不可支付";
-      loading.value = false;
       return;
     }
     await createPayment();

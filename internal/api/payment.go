@@ -47,14 +47,12 @@ type alipayPayer interface {
 
 // alipaySDK 是 alipayPayer 的 SDK 实现，包装 *alipay.Client。
 type alipaySDK struct {
-	client *alipay.Client
+	client    *alipay.Client
+	notifyURL string
 }
 
 func (a *alipaySDK) PreCreate(ctx context.Context, outTradeNo, totalAmount, subject string) (string, error) {
-	p := alipay.TradePreCreate{}
-	p.OutTradeNo = outTradeNo
-	p.TotalAmount = totalAmount
-	p.Subject = subject
+	p := buildPrecreate(outTradeNo, totalAmount, subject, a.notifyURL)
 	rsp, err := a.client.TradePreCreate(ctx, p)
 	if err != nil {
 		return "", err
@@ -63,6 +61,16 @@ func (a *alipaySDK) PreCreate(ctx context.Context, outTradeNo, totalAmount, subj
 		return "", fmt.Errorf("支付宝预下单失败: %s", rsp.SubMsg)
 	}
 	return rsp.QRCode, nil
+}
+
+// buildPrecreate 组装当面付预下单参数（含 notify_url，供生产环境异步通知兜底）。
+func buildPrecreate(outTradeNo, totalAmount, subject, notifyURL string) alipay.TradePreCreate {
+	p := alipay.TradePreCreate{}
+	p.OutTradeNo = outTradeNo
+	p.TotalAmount = totalAmount
+	p.Subject = subject
+	p.NotifyURL = notifyURL
+	return p
 }
 
 func (a *alipaySDK) Query(ctx context.Context, outTradeNo string) (string, string, error) {
@@ -91,6 +99,7 @@ type alipayConfig struct {
 	privateKey string
 	publicKey  string
 	production bool
+	notifyURL  string
 }
 
 func loadAlipayConfig() (alipayConfig, bool) {
@@ -99,6 +108,7 @@ func loadAlipayConfig() (alipayConfig, bool) {
 		privateKey: os.Getenv("ALIPAY_PRIVATE_KEY"),
 		publicKey:  os.Getenv("ALIPAY_PUBLIC_KEY"),
 		production: os.Getenv("ALIPAY_PRODUCTION") == "true",
+		notifyURL:  os.Getenv("ALIPAY_NOTIFY_URL"),
 	}
 	if cfg.appID == "" || cfg.privateKey == "" || cfg.publicKey == "" {
 		return alipayConfig{}, false
@@ -119,7 +129,7 @@ func newAlipayPayer() (alipayPayer, error) {
 	if err := client.LoadAliPayPublicKey(cfg.publicKey); err != nil {
 		return nil, err
 	}
-	return &alipaySDK{client: client}, nil
+	return &alipaySDK{client: client, notifyURL: cfg.notifyURL}, nil
 }
 
 // qrCodeDataURL 把文本生成 base64 编码的 PNG data URL，供前端 <img :src> 直显。
@@ -151,7 +161,10 @@ func handleAlipayNotify(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
 		if status == alipayStatusSuccess || status == alipayStatusFinished {
 			var order model.Order
 			if db.Where("order_no = ?", outTradeNo).First(&order).Error == nil {
-				_ = markPaid(db, order.ID, tradeNo)
+				if err := markPaid(db, order.ID, tradeNo); err != nil {
+					c.String(http.StatusInternalServerError, "failure")
+					return
+				}
 			}
 		}
 		c.String(http.StatusOK, "success")

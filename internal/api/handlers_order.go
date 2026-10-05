@@ -205,12 +205,9 @@ func payOrderStatus(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"message": "订单不存在"})
 			return
 		}
-		if order.Status == model.OrderStatusPaid {
-			c.JSON(http.StatusOK, gin.H{"status": "paid"})
-			return
-		}
 		if order.Status != model.OrderStatusPending {
-			c.JSON(http.StatusOK, gin.H{"status": order.Status})
+			// 非待付款（已支付/已发货/售后/已完成等）视为支付流程已结束。
+			c.JSON(http.StatusOK, gin.H{"status": "paid"})
 			return
 		}
 		if payer == nil {
@@ -224,7 +221,10 @@ func payOrderStatus(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
 		}
 		switch status {
 		case alipayStatusSuccess, alipayStatusFinished:
-			_ = markPaid(db, order.ID, tradeNo)
+			if err := markPaid(db, order.ID, tradeNo); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "支付确认失败"})
+				return
+			}
 			c.JSON(http.StatusOK, gin.H{"status": "paid"})
 		case alipayStatusClosed:
 			c.JSON(http.StatusOK, gin.H{"status": "closed"})
