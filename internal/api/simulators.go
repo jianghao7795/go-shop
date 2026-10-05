@@ -10,7 +10,7 @@ import (
 )
 
 // startSimulators 启动两个后台模拟器，用于演示服务器主动推送：
-// 1) 模拟商家定时发货：把最早的待付款订单改为待收货；
+// 1) 模拟商家定时发货：把最早的已付款订单改为待收货；
 // 2) 模拟营销：优惠券发放 10 分钟后向在线用户推送一次通知。
 func startSimulators(db *gorm.DB, hub *notificationHub) {
 	if db == nil {
@@ -35,8 +35,8 @@ func startSimulators(db *gorm.DB, hub *notificationHub) {
 
 func shipNextOrder(db *gorm.DB, hub *notificationHub) {
 	var order model.Order
-	if db.Where("status = ?", model.OrderStatusPending).Order("id ASC").First(&order).Error != nil {
-		return // 没有待付款订单，跳过
+	if db.Where("status = ?", model.OrderStatusPaid).Order("id ASC").First(&order).Error != nil {
+		return // 没有待发货订单，跳过
 	}
 	db.Model(&model.Order{}).Where("id = ?", order.ID).Update("status", model.OrderStatusShipped)
 	notify(db, hub, order.UserID, model.NotificationTypeOrder, "订单已发货",
