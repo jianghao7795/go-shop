@@ -95,7 +95,8 @@ func Start() {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery(), corsMiddleware())
-	router.Static("/uploads", "./uploads")
+	uploads := router.Group("/uploads", noSniffMiddleware())
+	uploads.Static("/", "./uploads")
 
 	jwtMiddleware, err := auth.New(db)
 	if err != nil {
@@ -212,6 +213,14 @@ func corsMiddleware() gin.HandlerFunc {
 			c.AbortWithStatus(204)
 			return
 		}
+		c.Next()
+	}
+}
+
+// noSniffMiddleware 给响应加 X-Content-Type-Options: nosniff，防止浏览器对上传内容做 MIME 嗅探。
+func noSniffMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("X-Content-Type-Options", "nosniff")
 		c.Next()
 	}
 }

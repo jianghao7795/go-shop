@@ -170,6 +170,19 @@ func saveImage(c *gin.Context, dir, urlPrefix string) (string, bool) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "图片不能超过 2MB"})
 		return "", false
 	}
+	// 嗅探真实内容类型，防止把任意文件改名成图片上传。
+	src, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "读取文件失败"})
+		return "", false
+	}
+	buf := make([]byte, 512)
+	n, _ := src.Read(buf)
+	src.Close()
+	if ct := http.DetectContentType(buf[:n]); ct != "image/jpeg" && ct != "image/png" && ct != "image/gif" && ct != "image/webp" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "图片内容无效"})
+		return "", false
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "保存失败"})
 		return "", false
