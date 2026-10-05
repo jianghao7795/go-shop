@@ -81,6 +81,10 @@ onMounted(() => {
           <van-cell title="购买数量"><template #value><van-stepper v-model="quantity" min="1" /></template></van-cell>
         </van-cell-group>
       </section>
+      <section v-if="product.detail" class="detail-rich">
+        <h3>商品详情</h3>
+        <div class="detail-rich-content" v-html="product.detail"></div>
+      </section>
       <section class="detail-reviews">
         <div class="reviews-head">
           <h3>商品评价</h3>
@@ -149,5 +153,11 @@ onMounted(() => {
   font-size: 14px;
   color: #1f2430;
 }
+.detail-rich { margin: 12px; padding: 12px; background: #fff; border-radius: 10px; }
+.detail-rich h3 { margin: 0 0 8px; font-size: 16px; }
+.detail-rich-content { font-size: 14px; color: #1f2430; line-height: 1.7; }
+.detail-rich-content :deep(img) { max-width: 100%; height: auto; display: block; }
+.detail-rich-content :deep(table) { border-collapse: collapse; width: 100%; }
+.detail-rich-content :deep(td), .detail-rich-content :deep(th) { border: 1px solid #ebedf0; padding: 6px; }
 </style>
 

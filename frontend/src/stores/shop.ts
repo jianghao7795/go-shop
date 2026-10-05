@@ -3,7 +3,7 @@ import { defineStore } from "pinia";
 import { showToast } from "vant";
 
 export interface ShopProduct {
-  id: number; name: string; description: string; price: number; originalPrice: number;
+  id: number; name: string; description: string; detail?: string; price: number; originalPrice: number;
   sales: number; emoji: string; color: string; category: string;
 }
 interface CartLine { product: ShopProduct; quantity: number; checked: boolean }
