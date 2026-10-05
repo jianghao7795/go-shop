@@ -2,11 +2,13 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"os"
 	"time"
 
+	"github.com/skip2/go-qrcode"
 	"github.com/smartwalle/alipay/v3"
 	"gorm.io/gorm"
 
@@ -116,4 +118,17 @@ func newAlipayPayer() (alipayPayer, error) {
 		return nil, err
 	}
 	return &alipaySDK{client: client}, nil
+}
+
+// qrCodeDataURL 把文本生成 base64 编码的 PNG data URL，供前端 <img :src> 直显。
+func qrCodeDataURL(text string) (string, error) {
+	qr, err := qrcode.New(text, qrcode.Medium)
+	if err != nil {
+		return "", err
+	}
+	png, err := qr.PNG(256)
+	if err != nil {
+		return "", err
+	}
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(png), nil
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -147,11 +148,15 @@ func getOrder(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// payOrder 支付订单：待付款 → 待发货（模拟支付）。
-func payOrder(db *gorm.DB) gin.HandlerFunc {
+// payOrder 发起支付宝当面付预下单，返回收款二维码 data URL。
+func payOrder(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if db == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		if payer == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "支付未配置"})
 			return
 		}
 		id, err := strconv.Atoi(c.Param("id"))
@@ -168,10 +173,17 @@ func payOrder(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "订单状态不可支付"})
 			return
 		}
-		if err := db.Model(&model.Order{}).Where("id = ?", id).Update("status", model.OrderStatusPaid).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"message": "支付失败"})
+		qrCode, err := payer.PreCreate(c.Request.Context(), order.OrderNo,
+			fmt.Sprintf("%.2f", order.Amount), "订单 "+order.OrderNo)
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"message": err.Error()})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"message": "支付成功"})
+		qrImage, err := qrCodeDataURL(qrCode)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "二维码生成失败"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"qrImage": qrImage, "orderNo": order.OrderNo, "amount": order.Amount})
 	}
 }
