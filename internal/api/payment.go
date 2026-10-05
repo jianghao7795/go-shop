@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -53,9 +54,15 @@ type alipayPayer interface {
 type alipaySDK struct {
 	client    *alipay.Client
 	notifyURL string
+
+	mu      sync.Mutex
+	qrCache map[string]string // outTradeNo -> 二维码串，避免同一订单重复预下单
 }
 
 func (a *alipaySDK) PreCreate(ctx context.Context, outTradeNo, totalAmount, subject string) (string, error) {
+	if qr, ok := a.cachedQR(outTradeNo); ok {
+		return qr, nil
+	}
 	p := buildPrecreate(outTradeNo, totalAmount, subject, a.notifyURL)
 	rsp, err := a.client.TradePreCreate(ctx, p)
 	if err != nil {
@@ -64,7 +71,29 @@ func (a *alipaySDK) PreCreate(ctx context.Context, outTradeNo, totalAmount, subj
 	if !rsp.Code.IsSuccess() {
 		return "", fmt.Errorf("支付宝预下单失败: %s", rsp.SubMsg)
 	}
+	a.cacheQR(outTradeNo, rsp.QRCode)
 	return rsp.QRCode, nil
+}
+
+// cachedQR 返回已缓存的二维码串（若有）；并发安全。
+func (a *alipaySDK) cachedQR(outTradeNo string) (string, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.qrCache == nil {
+		return "", false
+	}
+	qr, ok := a.qrCache[outTradeNo]
+	return qr, ok
+}
+
+// cacheQR 缓存二维码串；并发安全。
+func (a *alipaySDK) cacheQR(outTradeNo, qr string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.qrCache == nil {
+		a.qrCache = make(map[string]string)
+	}
+	a.qrCache[outTradeNo] = qr
 }
 
 // buildPrecreate 组装当面付预下单参数（含 notify_url，供生产环境异步通知兜底）。
@@ -133,7 +162,7 @@ func newAlipayPayer() (alipayPayer, error) {
 	if err := client.LoadAliPayPublicKey(cfg.publicKey); err != nil {
 		return nil, err
 	}
-	return &alipaySDK{client: client, notifyURL: cfg.notifyURL}, nil
+	return &alipaySDK{client: client, notifyURL: cfg.notifyURL, qrCache: make(map[string]string)}, nil
 }
 
 // alipayHTTPClient 返回带超时的 HTTP 客户端，避免支付接口无限阻塞。

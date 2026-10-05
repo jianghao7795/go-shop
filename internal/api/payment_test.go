@@ -571,3 +571,18 @@ func TestAlipayHTTPClientHasTimeout(t *testing.T) {
 		t.Fatalf("timeout = %v, want 10s", c.Timeout)
 	}
 }
+
+func TestAlipaySDKQRCache(t *testing.T) {
+	a := &alipaySDK{}
+	if _, ok := a.cachedQR("O1"); ok {
+		t.Fatal("空缓存应 miss")
+	}
+	a.cacheQR("O1", "qr-1")
+	qr, ok := a.cachedQR("O1")
+	if !ok || qr != "qr-1" {
+		t.Fatalf("cache hit = %q, %v, want qr-1, true", qr, ok)
+	}
+	if _, ok := a.cachedQR("O2"); ok {
+		t.Fatal("不同订单号应互不影响")
+	}
+}
