@@ -2,6 +2,7 @@ package api
 
 import (
 	"bufio"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -34,7 +35,9 @@ func TestSSEPushEndToEnd(t *testing.T) {
 	srv := httptest.NewServer(r)
 	defer srv.Close()
 
-	req, _ := http.NewRequest("GET", srv.URL+"/api/notifications/stream?token="+token, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, "GET", srv.URL+"/api/notifications/stream?token="+token, nil)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("connect: %v", err)

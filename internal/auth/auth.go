@@ -48,8 +48,11 @@ func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 		MaxRefresh:  7 * 24 * time.Hour,
 		IdentityKey: "user",
 		PayloadFunc: func(data any) jwt.MapClaims {
-			if ident, ok := data.(authIdentity); ok {
+			switch ident := data.(type) {
+			case authIdentity:
 				return jwt.MapClaims{"user": ident.Username}
+			case string: // 兼容测试用 TokenGenerator(username) 直接以用户名生成 token
+				return jwt.MapClaims{"user": ident}
 			}
 			return jwt.MapClaims{}
 		},
