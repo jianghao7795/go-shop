@@ -3,11 +3,13 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { Picker, showConfirmDialog, showToast, Switch } from "vant";
 import http from "../../lib/http";
 import { errMsg } from "../../lib/errmsg";
+import RichEditor from "../../components/RichEditor.vue";
 
 interface Product {
   id: number;
   name: string;
   description: string;
+  detail: string;
   price: number;
   originalPrice: number;
   sales: number;
@@ -41,6 +43,7 @@ const editingId = ref<number | null>(null);
 const form = reactive({
   name: "",
   description: "",
+  detail: "",
   price: "",
   originalPrice: "",
   emoji: "",
@@ -98,6 +101,7 @@ function openCreate() {
   Object.assign(form, {
     name: "",
     description: "",
+    detail: "",
     price: "",
     originalPrice: "",
     emoji: "",
@@ -114,6 +118,7 @@ function openEdit(p: Product) {
   Object.assign(form, {
     name: p.name,
     description: p.description,
+    detail: p.detail || "",
     price: String(p.price),
     originalPrice: String(p.originalPrice),
     emoji: p.emoji,
@@ -129,6 +134,7 @@ function buildBody(onShelf: boolean) {
   return {
     name: form.name,
     description: form.description,
+    detail: form.detail,
     price: Number(form.price) || 0,
     originalPrice: Number(form.originalPrice) || 0,
     emoji: form.emoji,
@@ -283,6 +289,11 @@ onMounted(() => {
           autosize
           placeholder="商品描述"
         />
+        <van-field label="图文详情">
+          <template #input>
+            <RichEditor v-if="showForm" v-model="form.detail" />
+          </template>
+        </van-field>
         <van-field v-model="form.price" label="价格" type="number" placeholder="0.00" />
         <van-field v-model="form.originalPrice" label="原价" type="number" placeholder="0.00" />
         <van-field v-model="form.emoji" label="Emoji" placeholder="如 🍎" />

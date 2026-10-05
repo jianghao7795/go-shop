@@ -12,6 +12,7 @@
   "dependencies": {
     "@vant/area-data": "^2.2.0",
     "@wailsio/runtime": "3.0.0-beta.27",
+    "@wangeditor/editor": "^5.1.23",
     "axios": "^1.20.0",
     "pinia": "^3.0.4",
     "vant": "^4.10.2",
