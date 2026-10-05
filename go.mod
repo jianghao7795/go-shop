@@ -7,6 +7,7 @@ require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/glebarez/sqlite v1.11.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
+	github.com/smartwalle/alipay/v3 v3.2.31
 	github.com/wailsapp/wails/v3 v3.0.0-beta.27
 	golang.org/x/crypto v0.57.0
 	gorm.io/driver/mysql v1.6.0
@@ -49,7 +50,6 @@ require (
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/smartwalle/alipay/v3 v3.2.31 // indirect
 	github.com/smartwalle/ncrypto v1.0.4 // indirect
 	github.com/smartwalle/ngx v1.1.2 // indirect
 	github.com/smartwalle/nsign v1.0.9 // indirect
