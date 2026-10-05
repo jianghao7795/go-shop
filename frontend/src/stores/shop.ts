@@ -28,7 +28,6 @@ function loadCart(): Record<number, CartLine> {
 export const useShopCart = defineStore("shopCart", () => {
   const items = ref<Record<number, CartLine>>(loadCart());
   const cartItems = computed(() => Object.values(items.value));
-  const count = computed(() => cartItems.value.reduce((sum, item) => sum + item.quantity, 0));
   const total = computed(() => cartItems.value.reduce((sum, item) => sum + item.product.price * item.quantity, 0));
   const checkedItems = computed(() => cartItems.value.filter(it => it.checked));
   const checkedCount = computed(() => checkedItems.value.reduce((sum, item) => sum + item.quantity, 0));
@@ -83,5 +82,5 @@ export const useShopCart = defineStore("shopCart", () => {
     items.value = {};
     persist();
   }
-  return { items, cartItems, count, total, checkedItems, checkedCount, checkedTotal, allChecked, add, increase, decrease, toggleChecked, setAllChecked, remove, removeChecked, clear };
+  return { items, cartItems, total, checkedItems, checkedCount, checkedTotal, allChecked, add, increase, decrease, toggleChecked, setAllChecked, remove, removeChecked, clear };
 });

@@ -1,6 +1,8 @@
 package api
 
 import (
+	"slices"
+
 	"gorm.io/gorm"
 
 	"shop/internal/model"
@@ -8,12 +10,7 @@ import (
 
 // hasPermission 判断权限列表是否包含某权限点。
 func hasPermission(perms []string, perm string) bool {
-	for _, p := range perms {
-		if p == perm {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(perms, perm)
 }
 
 // effectivePermissions 返回用户在数据库中的有效权限点并集。
