@@ -4,7 +4,7 @@ import { showToast } from "vant";
 import { createEditor, createToolbar, type IDomEditor, type Toolbar } from "@wangeditor/editor";
 import "@wangeditor/editor/dist/css/style.css";
 import http from "../lib/http";
-import { avatarSrc } from "../lib/avatar";
+import { avatarSrc, resolveDetailHtml, unresolveDetailHtml } from "../lib/avatar";
 
 const props = defineProps<{ modelValue: string }>();
 const emit = defineEmits<{ (e: "update:modelValue", v: string): void }>();
@@ -17,7 +17,7 @@ let toolbar: Toolbar | null = null;
 onMounted(() => {
   editor = createEditor({
     selector: editorEl.value!,
-    html: props.modelValue,
+    html: resolveDetailHtml(props.modelValue),
     mode: "default",
     config: {
       placeholder: "请输入图文详情",
@@ -37,7 +37,7 @@ onMounted(() => {
         },
       },
       onChange(ed) {
-        emit("update:modelValue", ed.getHtml());
+        emit("update:modelValue", unresolveDetailHtml(ed.getHtml()));
       },
     },
   });

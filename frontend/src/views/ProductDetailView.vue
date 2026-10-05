@@ -5,6 +5,7 @@ import { storeToRefs } from "pinia";
 import { Rate, showToast } from "vant";
 import { useShopCart, type ShopProduct } from "../stores/shop";
 import http from "../lib/http";
+import { resolveDetailHtml } from "../lib/avatar";
 
 const route = useRoute();
 const router = useRouter();
@@ -83,7 +84,7 @@ onMounted(() => {
       </section>
       <section v-if="product.detail" class="detail-rich">
         <h3>商品详情</h3>
-        <div class="detail-rich-content" v-html="product.detail"></div>
+        <div class="detail-rich-content" v-html="resolveDetailHtml(product.detail || '')"></div>
       </section>
       <section class="detail-reviews">
         <div class="reviews-head">

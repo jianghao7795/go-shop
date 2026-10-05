@@ -8,3 +8,16 @@ export function avatarSrc(avatar: string): string {
   if (avatar.startsWith("/uploads")) return apiBase() + avatar;
   return "";
 }
+
+// resolveDetailHtml 把详情 HTML 里相对的 /uploads/... 图片/链接 src 解析成完整 URL，供 v-html 渲染。
+export function resolveDetailHtml(html: string): string {
+  if (!html) return "";
+  const base = apiBase();
+  return html.replace(/(src|href)="(\/uploads\/[^"]*)"/g, (_, attr, path) => `${attr}="${base}${path}"`);
+}
+
+// unresolveDetailHtml 把详情 HTML 里的完整 /uploads/... URL 还原为相对路径，用于存库（与 host 无关）。
+export function unresolveDetailHtml(html: string): string {
+  if (!html) return "";
+  return html.split(apiBase() + "/uploads/").join("/uploads/");
+}
