@@ -237,3 +237,85 @@ func TestPayOrderNotPending(t *testing.T) {
 		t.Fatalf("status = %d, want 400", w.Code)
 	}
 }
+
+func payStatusCtx(t *testing.T, id uint) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/api/orders/"+strconv.Itoa(int(id))+"/pay/status", nil)
+	c.Params = gin.Params{{Key: "id", Value: strconv.Itoa(int(id))}}
+	return c, w
+}
+
+func payStatusOf(t *testing.T, w *httptest.ResponseRecorder) string {
+	t.Helper()
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	return body.Status
+}
+
+func TestPayOrderStatusQuerySuccess(t *testing.T) {
+	db := newTestDB(t)
+	order := model.Order{OrderNo: "O200", UserID: "", Status: model.OrderStatusPending}
+	db.Create(&order)
+	payer := &mockPayer{query: func(ctx context.Context, o string) (string, string, error) {
+		return "TRADE_SUCCESS", "trade-200", nil
+	}}
+	c, w := payStatusCtx(t, order.ID)
+	payOrderStatus(db, payer)(c)
+
+	if got := payStatusOf(t, w); got != "paid" {
+		t.Fatalf("status = %q, want paid", got)
+	}
+	var reloaded model.Order
+	db.First(&reloaded, order.ID)
+	if reloaded.Status != model.OrderStatusPaid || reloaded.TradeNo != "trade-200" {
+		t.Fatalf("order not marked paid: %+v", reloaded)
+	}
+}
+
+func TestPayOrderStatusWaitBuyer(t *testing.T) {
+	db := newTestDB(t)
+	order := model.Order{OrderNo: "O201", UserID: "", Status: model.OrderStatusPending}
+	db.Create(&order)
+	payer := &mockPayer{query: func(ctx context.Context, o string) (string, string, error) {
+		return "WAIT_BUYER_PAY", "", nil
+	}}
+	c, w := payStatusCtx(t, order.ID)
+	payOrderStatus(db, payer)(c)
+	if got := payStatusOf(t, w); got != "pending" {
+		t.Fatalf("status = %q, want pending", got)
+	}
+}
+
+func TestPayOrderStatusClosed(t *testing.T) {
+	db := newTestDB(t)
+	order := model.Order{OrderNo: "O202", UserID: "", Status: model.OrderStatusPending}
+	db.Create(&order)
+	payer := &mockPayer{query: func(ctx context.Context, o string) (string, string, error) {
+		return "TRADE_CLOSED", "", nil
+	}}
+	c, w := payStatusCtx(t, order.ID)
+	payOrderStatus(db, payer)(c)
+	if got := payStatusOf(t, w); got != "closed" {
+		t.Fatalf("status = %q, want closed", got)
+	}
+}
+
+func TestPayOrderStatusAlreadyPaid(t *testing.T) {
+	db := newTestDB(t)
+	order := model.Order{OrderNo: "O203", UserID: "", Status: model.OrderStatusPaid}
+	db.Create(&order)
+	// 已 paid 时应直接返回，不调用 query（query 为 nil，调用即报错）。
+	payer := &mockPayer{}
+	c, w := payStatusCtx(t, order.ID)
+	payOrderStatus(db, payer)(c)
+	if got := payStatusOf(t, w); got != "paid" {
+		t.Fatalf("status = %q, want paid", got)
+	}
+}

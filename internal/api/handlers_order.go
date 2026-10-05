@@ -187,3 +187,49 @@ func payOrder(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"qrImage": qrImage, "orderNo": order.OrderNo, "amount": order.Amount})
 	}
 }
+
+// payOrderStatus 查询支付宝交易状态；已支付则幂等落库，供前端轮询。
+func payOrderStatus(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "无效的订单"})
+			return
+		}
+		var order model.Order
+		if db.Where("id = ? AND user_id = ?", id, currentUser(c)).First(&order).Error != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "订单不存在"})
+			return
+		}
+		if order.Status == model.OrderStatusPaid {
+			c.JSON(http.StatusOK, gin.H{"status": "paid"})
+			return
+		}
+		if order.Status != model.OrderStatusPending {
+			c.JSON(http.StatusOK, gin.H{"status": order.Status})
+			return
+		}
+		if payer == nil {
+			c.JSON(http.StatusOK, gin.H{"status": "pending"})
+			return
+		}
+		status, tradeNo, err := payer.Query(c.Request.Context(), order.OrderNo)
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"message": err.Error()})
+			return
+		}
+		switch status {
+		case alipayStatusSuccess, alipayStatusFinished:
+			_ = markPaid(db, order.ID, tradeNo)
+			c.JSON(http.StatusOK, gin.H{"status": "paid"})
+		case alipayStatusClosed:
+			c.JSON(http.StatusOK, gin.H{"status": "closed"})
+		default: // WAIT_BUYER_PAY 等
+			c.JSON(http.StatusOK, gin.H{"status": "pending"})
+		}
+	}
+}
