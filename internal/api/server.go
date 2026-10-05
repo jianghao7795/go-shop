@@ -103,9 +103,13 @@ func Start() {
 	}
 	hub := newNotificationHub()
 	payer, err := newAlipayPayer()
+	payDisabled := ""
 	if err != nil {
 		log.Printf("alipay init failed (payment disabled): %v", err)
+		payDisabled = "支付配置错误，请联系管理员"
 		payer = nil
+	} else if payer == nil {
+		payDisabled = "支付未配置"
 	}
 	router.GET("/api/notifications/stream", tokenFromQuery(), jwtMiddleware.MiddlewareFunc(), streamNotifications(hub))
 	router.POST("/api/login", jwtMiddleware.LoginHandler)
@@ -125,7 +129,7 @@ func Start() {
 	protected.GET("/orders", listOrders(db))
 	protected.POST("/orders", createOrder(db))
 	protected.GET("/orders/:id", getOrder(db))
-	protected.POST("/orders/:id/pay", payOrder(db, payer))
+	protected.POST("/orders/:id/pay", payOrder(db, payer, payDisabled))
 	protected.GET("/orders/:id/pay/status", payOrderStatus(db, payer))
 	protected.POST("/orders/:id/reviews", submitOrderReviews(db))
 	protected.PUT("/orders/:id/status", updateOrderStatus(db, hub))

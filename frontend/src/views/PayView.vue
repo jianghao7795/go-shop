@@ -39,7 +39,7 @@ async function createPayment() {
     startPolling();
   } catch (err) {
     const e = err as any;
-    if (e?.response?.status === 503) errorMsg.value = "支付服务暂未配置";
+    if (e?.response?.status === 503) errorMsg.value = e?.response?.data?.message || "支付服务暂未配置";
     else errorMsg.value = e?.response?.data?.message || "支付下单失败";
     loading.value = false;
   }

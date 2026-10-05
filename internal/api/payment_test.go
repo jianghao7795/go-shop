@@ -178,7 +178,7 @@ func TestPayOrderPrecreateSuccess(t *testing.T) {
 		},
 	}
 	c, w := payOrderCtx(t, order.ID)
-	payOrder(db, payer)(c)
+	payOrder(db, payer, "")(c)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", w.Code)
@@ -222,9 +222,36 @@ func TestQrCodeDataURLIsPNG(t *testing.T) {
 func TestPayOrderUnconfigured(t *testing.T) {
 	db := newTestDB(t)
 	c, w := payOrderCtx(t, 1)
-	payOrder(db, nil)(c) // payer == nil → 503
+	payOrder(db, nil, "支付未配置")(c) // payer == nil → 503
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", w.Code)
+	}
+	var body struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if body.Message != "支付未配置" {
+		t.Fatalf("message = %q, want 支付未配置", body.Message)
+	}
+}
+
+func TestPayOrderMisconfigured(t *testing.T) {
+	db := newTestDB(t)
+	c, w := payOrderCtx(t, 1)
+	payOrder(db, nil, "支付配置错误，请联系管理员")(c) // 配置错误与未配置应可区分
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", w.Code)
+	}
+	var body struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if body.Message != "支付配置错误，请联系管理员" {
+		t.Fatalf("message = %q, want 支付配置错误，请联系管理员", body.Message)
 	}
 }
 
@@ -234,9 +261,36 @@ func TestPayOrderNotPending(t *testing.T) {
 	db.Create(&order)
 	payer := &mockPayer{preCreate: func(ctx context.Context, o, a, s string) (string, error) { return "x", nil }}
 	c, w := payOrderCtx(t, order.ID)
-	payOrder(db, payer)(c)
+	payOrder(db, payer, "")(c)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", w.Code)
+	}
+}
+
+func TestPayOrderPrecreateErrorGeneric(t *testing.T) {
+	db := newTestDB(t)
+	order := model.Order{OrderNo: "O102", UserID: "", Status: model.OrderStatusPending}
+	db.Create(&order)
+	payer := &mockPayer{preCreate: func(ctx context.Context, o, a, s string) (string, error) {
+		return "", fmt.Errorf("alipay raw secret detail")
+	}}
+	c, w := payOrderCtx(t, order.ID)
+	payOrder(db, payer, "")(c)
+
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", w.Code)
+	}
+	var body struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if strings.Contains(body.Message, "secret detail") {
+		t.Fatalf("不应透传底层错误: %q", body.Message)
+	}
+	if body.Message == "" {
+		t.Fatal("应返回通用错误提示")
 	}
 }
 
@@ -306,6 +360,33 @@ func TestPayOrderStatusClosed(t *testing.T) {
 	payOrderStatus(db, payer)(c)
 	if got := payStatusOf(t, w); got != "closed" {
 		t.Fatalf("status = %q, want closed", got)
+	}
+}
+
+func TestPayOrderStatusQueryErrorGeneric(t *testing.T) {
+	db := newTestDB(t)
+	order := model.Order{OrderNo: "O206", UserID: "", Status: model.OrderStatusPending}
+	db.Create(&order)
+	payer := &mockPayer{query: func(ctx context.Context, o string) (string, string, error) {
+		return "", "", fmt.Errorf("alipay raw secret detail")
+	}}
+	c, w := payStatusCtx(t, order.ID)
+	payOrderStatus(db, payer)(c)
+
+	if w.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", w.Code)
+	}
+	var body struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if strings.Contains(body.Message, "secret detail") {
+		t.Fatalf("不应透传底层错误: %q", body.Message)
+	}
+	if body.Message == "" {
+		t.Fatal("应返回通用错误提示")
 	}
 }
 
