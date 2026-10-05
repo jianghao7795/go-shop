@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/skip2/go-qrcode"
 	"github.com/smartwalle/alipay/v3"
 	"gorm.io/gorm"
@@ -131,4 +133,27 @@ func qrCodeDataURL(text string) (string, error) {
 		return "", err
 	}
 	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(png), nil
+}
+
+// handleAlipayNotify 处理支付宝异步通知：验签通过且交易成功时幂等落库。
+func handleAlipayNotify(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if db == nil || payer == nil {
+			c.String(http.StatusInternalServerError, "failure")
+			return
+		}
+		_ = c.Request.ParseForm()
+		status, tradeNo, outTradeNo, err := payer.DecodeNotify(c.Request.Context(), c.Request.Form)
+		if err != nil {
+			c.String(http.StatusBadRequest, "failure")
+			return
+		}
+		if status == alipayStatusSuccess || status == alipayStatusFinished {
+			var order model.Order
+			if db.Where("order_no = ?", outTradeNo).First(&order).Error == nil {
+				_ = markPaid(db, order.ID, tradeNo)
+			}
+		}
+		c.String(http.StatusOK, "success")
+	}
 }

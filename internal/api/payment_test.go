@@ -319,3 +319,73 @@ func TestPayOrderStatusAlreadyPaid(t *testing.T) {
 		t.Fatalf("status = %q, want paid", got)
 	}
 }
+
+func notifyCtx(t *testing.T) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/api/pay/alipay/notify", nil)
+	c.Request.Form = url.Values{}
+	return c, w
+}
+
+func TestNotifyMarksPaid(t *testing.T) {
+	db := newTestDB(t)
+	order := model.Order{OrderNo: "O300", UserID: "u1", Status: model.OrderStatusPending}
+	db.Create(&order)
+	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, error) {
+		return "TRADE_SUCCESS", "trade-300", "O300", nil
+	}}
+	c, w := notifyCtx(t)
+	handleAlipayNotify(db, payer)(c)
+
+	if w.Code != http.StatusOK || w.Body.String() != "success" {
+		t.Fatalf("resp = %d %q, want 200 success", w.Code, w.Body.String())
+	}
+	var got model.Order
+	db.First(&got, order.ID)
+	if got.Status != model.OrderStatusPaid || got.TradeNo != "trade-300" {
+		t.Fatalf("order not paid: %+v", got)
+	}
+}
+
+func TestNotifyInvalidSignDoesNotMarkPaid(t *testing.T) {
+	db := newTestDB(t)
+	order := model.Order{OrderNo: "O301", UserID: "u1", Status: model.OrderStatusPending}
+	db.Create(&order)
+	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, error) {
+		return "", "", "", fmt.Errorf("sign verify failed")
+	}}
+	c, w := notifyCtx(t)
+	handleAlipayNotify(db, payer)(c)
+
+	if w.Code == http.StatusOK && w.Body.String() == "success" {
+		t.Fatal("验签失败不应 ack success")
+	}
+	var got model.Order
+	db.First(&got, order.ID)
+	if got.Status != model.OrderStatusPending {
+		t.Fatalf("验签失败仍被标记支付: %+v", got)
+	}
+}
+
+func TestNotifyNonSuccessStatus(t *testing.T) {
+	db := newTestDB(t)
+	order := model.Order{OrderNo: "O302", UserID: "u1", Status: model.OrderStatusPending}
+	db.Create(&order)
+	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, error) {
+		return "TRADE_CLOSED", "", "O302", nil
+	}}
+	c, w := notifyCtx(t)
+	handleAlipayNotify(db, payer)(c)
+
+	if w.Body.String() != "success" {
+		t.Fatal("非成功状态也应 ack 以停止重试")
+	}
+	var got model.Order
+	db.First(&got, order.ID)
+	if got.Status != model.OrderStatusPending {
+		t.Fatalf("TRADE_CLOSED 不应标记支付: %+v", got)
+	}
+}

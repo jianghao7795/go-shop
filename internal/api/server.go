@@ -110,6 +110,7 @@ func Start() {
 	router.GET("/api/notifications/stream", tokenFromQuery(), jwtMiddleware.MiddlewareFunc(), streamNotifications(hub))
 	router.POST("/api/login", jwtMiddleware.LoginHandler)
 	router.POST("/api/register", registerHandler(db))
+	router.POST("/api/pay/alipay/notify", handleAlipayNotify(db, payer))
 
 	protected := router.Group("/api")
 	protected.Use(jwtMiddleware.MiddlewareFunc())
