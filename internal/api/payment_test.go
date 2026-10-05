@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -132,7 +133,7 @@ func TestNewAlipayPayerInvalidKey(t *testing.T) {
 type mockPayer struct {
 	preCreate func(ctx context.Context, outTradeNo, totalAmount, subject string) (string, error)
 	query     func(ctx context.Context, outTradeNo string) (string, string, error)
-	decode    func(ctx context.Context, values url.Values) (string, string, string, error)
+	decode    func(ctx context.Context, values url.Values) (string, string, string, string, error)
 }
 
 func (m *mockPayer) PreCreate(ctx context.Context, o, a, s string) (string, error) {
@@ -147,9 +148,9 @@ func (m *mockPayer) Query(ctx context.Context, o string) (string, string, error)
 	}
 	return m.query(ctx, o)
 }
-func (m *mockPayer) DecodeNotify(ctx context.Context, v url.Values) (string, string, string, error) {
+func (m *mockPayer) DecodeNotify(ctx context.Context, v url.Values) (string, string, string, string, error) {
 	if m.decode == nil {
-		return "", "", "", fmt.Errorf("unexpected DecodeNotify")
+		return "", "", "", "", fmt.Errorf("unexpected DecodeNotify")
 	}
 	return m.decode(ctx, v)
 }
@@ -333,10 +334,10 @@ func notifyCtx(t *testing.T) (*gin.Context, *httptest.ResponseRecorder) {
 
 func TestNotifyMarksPaid(t *testing.T) {
 	db := newTestDB(t)
-	order := model.Order{OrderNo: "O300", UserID: "u1", Status: model.OrderStatusPending}
+	order := model.Order{OrderNo: "O300", UserID: "u1", Status: model.OrderStatusPending, Amount: 19.9}
 	db.Create(&order)
-	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, error) {
-		return "TRADE_SUCCESS", "trade-300", "O300", nil
+	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, string, error) {
+		return "TRADE_SUCCESS", "trade-300", "O300", "19.90", nil
 	}}
 	c, w := notifyCtx(t)
 	handleAlipayNotify(db, payer)(c)
@@ -355,8 +356,8 @@ func TestNotifyInvalidSignDoesNotMarkPaid(t *testing.T) {
 	db := newTestDB(t)
 	order := model.Order{OrderNo: "O301", UserID: "u1", Status: model.OrderStatusPending}
 	db.Create(&order)
-	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, error) {
-		return "", "", "", fmt.Errorf("sign verify failed")
+	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, string, error) {
+		return "", "", "", "", fmt.Errorf("sign verify failed")
 	}}
 	c, w := notifyCtx(t)
 	handleAlipayNotify(db, payer)(c)
@@ -375,8 +376,8 @@ func TestNotifyNonSuccessStatus(t *testing.T) {
 	db := newTestDB(t)
 	order := model.Order{OrderNo: "O302", UserID: "u1", Status: model.OrderStatusPending}
 	db.Create(&order)
-	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, error) {
-		return "TRADE_CLOSED", "", "O302", nil
+	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, string, error) {
+		return "TRADE_CLOSED", "", "O302", "", nil
 	}}
 	c, w := notifyCtx(t)
 	handleAlipayNotify(db, payer)(c)
@@ -417,17 +418,34 @@ func TestPayOrderStatusMarkPaidError(t *testing.T) {
 
 func TestNotifyMarkPaidError(t *testing.T) {
 	db := newTestDB(t)
-	order := model.Order{OrderNo: "O303", UserID: "u1", Status: model.OrderStatusPending}
+	order := model.Order{OrderNo: "O303", UserID: "u1", Status: model.OrderStatusPending, Amount: 19.9}
 	db.Create(&order)
 	makeReadOnly(t, db)
-	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, error) {
-		return "TRADE_SUCCESS", "trade-303", "O303", nil
+	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, string, error) {
+		return "TRADE_SUCCESS", "trade-303", "O303", "19.90", nil
 	}}
 	c, w := notifyCtx(t)
 	handleAlipayNotify(db, payer)(c)
 
 	if w.Body.String() == "success" {
 		t.Fatal("markPaid 失败不应 ack success（否则支付宝不再重试）")
+	}
+}
+
+func TestNotifyAmountMismatch(t *testing.T) {
+	db := newTestDB(t)
+	order := model.Order{OrderNo: "O304", UserID: "u1", Status: model.OrderStatusPending, Amount: 19.9}
+	db.Create(&order)
+	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, string, error) {
+		return "TRADE_SUCCESS", "trade-304", "O304", "9.90", nil
+	}}
+	c, _ := notifyCtx(t)
+	handleAlipayNotify(db, payer)(c)
+
+	var got model.Order
+	db.First(&got, order.ID)
+	if got.Status != model.OrderStatusPending {
+		t.Fatalf("金额不符不应标记支付: %+v", got)
 	}
 }
 
@@ -448,5 +466,27 @@ func TestPayOrderStatusNonPending(t *testing.T) {
 
 	if got := payStatusOf(t, w); got != "paid" {
 		t.Fatalf("status = %q, want paid（非待付款视为已完成支付流程）", got)
+	}
+}
+
+func TestMarkPaidEmptyTradeNo(t *testing.T) {
+	db := newTestDB(t)
+	order := model.Order{OrderNo: "O3", UserID: "u1", Status: model.OrderStatusPending}
+	db.Create(&order)
+
+	if err := markPaid(db, order.ID, ""); err == nil {
+		t.Fatal("empty tradeNo should be rejected")
+	}
+	var got model.Order
+	db.First(&got, order.ID)
+	if got.Status != model.OrderStatusPending {
+		t.Fatalf("空 tradeNo 不应标记支付: %+v", got)
+	}
+}
+
+func TestAlipayHTTPClientHasTimeout(t *testing.T) {
+	c := alipayHTTPClient()
+	if c.Timeout != 10*time.Second {
+		t.Fatalf("timeout = %v, want 10s", c.Timeout)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,6 +20,9 @@ import (
 
 // markPaid 幂等落库：仅当订单仍是待付款时，标记为已支付并写入支付宝交易号。
 func markPaid(db *gorm.DB, orderID uint, tradeNo string) error {
+	if tradeNo == "" {
+		return fmt.Errorf("支付宝交易号为空")
+	}
 	now := time.Now()
 	return db.Model(&model.Order{}).
 		Where("id = ? AND status = ?", orderID, model.OrderStatusPending).
@@ -42,7 +46,7 @@ const (
 type alipayPayer interface {
 	PreCreate(ctx context.Context, outTradeNo, totalAmount, subject string) (qrCode string, err error)
 	Query(ctx context.Context, outTradeNo string) (status, tradeNo string, err error)
-	DecodeNotify(ctx context.Context, values url.Values) (status, tradeNo, outTradeNo string, err error)
+	DecodeNotify(ctx context.Context, values url.Values) (status, tradeNo, outTradeNo, totalAmount string, err error)
 }
 
 // alipaySDK 是 alipayPayer 的 SDK 实现，包装 *alipay.Client。
@@ -85,12 +89,12 @@ func (a *alipaySDK) Query(ctx context.Context, outTradeNo string) (string, strin
 	return string(rsp.TradeStatus), rsp.TradeNo, nil
 }
 
-func (a *alipaySDK) DecodeNotify(ctx context.Context, values url.Values) (string, string, string, error) {
+func (a *alipaySDK) DecodeNotify(ctx context.Context, values url.Values) (string, string, string, string, error) {
 	noti, err := a.client.DecodeNotification(ctx, values)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
-	return string(noti.TradeStatus), noti.TradeNo, noti.OutTradeNo, nil
+	return string(noti.TradeStatus), noti.TradeNo, noti.OutTradeNo, noti.TotalAmount, nil
 }
 
 // alipayConfig 是从环境变量读到的支付宝配置。
@@ -122,7 +126,7 @@ func newAlipayPayer() (alipayPayer, error) {
 	if !ok {
 		return nil, nil
 	}
-	client, err := alipay.New(cfg.appID, cfg.privateKey, cfg.production)
+	client, err := alipay.New(cfg.appID, cfg.privateKey, cfg.production, alipay.WithHTTPClient(alipayHTTPClient()))
 	if err != nil {
 		return nil, err
 	}
@@ -130,6 +134,11 @@ func newAlipayPayer() (alipayPayer, error) {
 		return nil, err
 	}
 	return &alipaySDK{client: client, notifyURL: cfg.notifyURL}, nil
+}
+
+// alipayHTTPClient 返回带超时的 HTTP 客户端，避免支付接口无限阻塞。
+func alipayHTTPClient() *http.Client {
+	return &http.Client{Timeout: 10 * time.Second}
 }
 
 // qrCodeDataURL 把文本生成 base64 编码的 PNG data URL，供前端 <img :src> 直显。
@@ -153,7 +162,7 @@ func handleAlipayNotify(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
 			return
 		}
 		_ = c.Request.ParseForm()
-		status, tradeNo, outTradeNo, err := payer.DecodeNotify(c.Request.Context(), c.Request.Form)
+		status, tradeNo, outTradeNo, totalAmount, err := payer.DecodeNotify(c.Request.Context(), c.Request.Form)
 		if err != nil {
 			c.String(http.StatusBadRequest, "failure")
 			return
@@ -161,6 +170,11 @@ func handleAlipayNotify(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
 		if status == alipayStatusSuccess || status == alipayStatusFinished {
 			var order model.Order
 			if db.Where("order_no = ?", outTradeNo).First(&order).Error == nil {
+				if totalAmount != "" && totalAmount != fmt.Sprintf("%.2f", order.Amount) {
+					log.Printf("alipay notify amount mismatch: order %s notify %s want %.2f", order.OrderNo, totalAmount, order.Amount)
+					c.String(http.StatusOK, "success")
+					return
+				}
 				if err := markPaid(db, order.ID, tradeNo); err != nil {
 					c.String(http.StatusInternalServerError, "failure")
 					return
