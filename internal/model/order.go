@@ -41,6 +41,9 @@ type Order struct {
 	CreatedAt time.Time      `json:"createdAt"`
 	UpdatedAt time.Time      `json:"updatedAt"`
 	DeletedAt gorm.DeletedAt `json:"-"`
+	TradeNo   string         `json:"tradeNo" gorm:"size:64"`
+	PayMethod string         `json:"payMethod" gorm:"size:16"`
+	PaidAt    *time.Time     `json:"paidAt"`
 }
 
 // TableName 使用独立的 shop_orders 表。
