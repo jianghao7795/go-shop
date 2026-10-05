@@ -11,6 +11,7 @@ type Product struct {
 	ID            int            `json:"id" gorm:"primaryKey"`
 	Name          string         `json:"name"`
 	Description   string         `json:"description"`
+	Detail        string         `json:"detail" gorm:"type:text"`
 	Price         float64        `json:"price"`
 	OriginalPrice float64        `json:"originalPrice"`
 	Sales         int            `json:"sales"`

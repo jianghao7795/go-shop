@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/microcosm-cc/bluemonday"
 	"gorm.io/gorm"
 
 	"shop/internal/model"
@@ -88,6 +89,7 @@ func adminUpdateUserStatus(db *gorm.DB) gin.HandlerFunc {
 type productPayload struct {
 	Name          string  `json:"name"`
 	Description   string  `json:"description"`
+	Detail        string  `json:"detail"`
 	Price         float64 `json:"price"`
 	OriginalPrice float64 `json:"originalPrice"`
 	Emoji         string  `json:"emoji"`
@@ -108,6 +110,15 @@ func validateProduct(p productPayload) string {
 		return "请选择分类"
 	}
 	return ""
+}
+
+// sanitizeProductDetail 用白名单清洗商品详情 HTML，防 XSS。
+func sanitizeProductDetail(html string) string {
+	p := bluemonday.UGCPolicy()
+	p.AllowRelativeURLs(true)
+	p.AllowElements("table", "thead", "tbody", "tr", "th", "td", "hr")
+	p.AllowAttrs("colspan", "rowspan").OnElements("th", "td")
+	return p.Sanitize(html)
 }
 
 func adminListProducts(db *gorm.DB) gin.HandlerFunc {
@@ -143,7 +154,7 @@ func adminCreateProduct(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
 			return
 		}
-		item := model.Product{Name: p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice, Emoji: p.Emoji, Color: p.Color, Category: p.Category}
+		item := model.Product{Name: p.Name, Description: p.Description, Detail: sanitizeProductDetail(p.Detail), Price: p.Price, OriginalPrice: p.OriginalPrice, Emoji: p.Emoji, Color: p.Color, Category: p.Category}
 		if p.OnShelf != nil {
 			item.OnShelf = *p.OnShelf
 		} else {
@@ -180,7 +191,7 @@ func adminUpdateProduct(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
 			return
 		}
-		updates := map[string]any{"name": p.Name, "description": p.Description, "price": p.Price, "original_price": p.OriginalPrice, "emoji": p.Emoji, "color": p.Color, "category": p.Category}
+		updates := map[string]any{"name": p.Name, "description": p.Description, "detail": sanitizeProductDetail(p.Detail), "price": p.Price, "original_price": p.OriginalPrice, "emoji": p.Emoji, "color": p.Color, "category": p.Category}
 		if p.OnShelf != nil {
 			updates["on_shelf"] = *p.OnShelf
 		}

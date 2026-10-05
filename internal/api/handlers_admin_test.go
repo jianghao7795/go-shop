@@ -1,7 +1,16 @@
 package api
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+
+	"shop/internal/model"
 )
 
 func TestValidateProduct(t *testing.T) {
@@ -82,5 +91,60 @@ func TestValidateRole(t *testing.T) {
 				t.Fatalf("validateRole(%+v)=%q, ok=%v", tt.p, got, tt.ok)
 			}
 		})
+	}
+}
+
+func newProductTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&model.Product{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	return db
+}
+
+func TestSanitizeProductDetail(t *testing.T) {
+	in := `<p onclick="alert(1)">你好<img src="/uploads/products/a.png" onerror="alert(2)"></p><script>alert(3)</script><table><tr><td>参数</td></tr></table>`
+	out := sanitizeProductDetail(in)
+	if strings.Contains(out, "alert") || strings.Contains(out, "<script") {
+		t.Fatalf("未剥离危险内容: %q", out)
+	}
+	if !strings.Contains(out, "a.png") {
+		t.Fatalf("img src 应保留: %q", out)
+	}
+	if !strings.Contains(out, "<table") {
+		t.Fatalf("table 应保留: %q", out)
+	}
+}
+
+func adminCreateProductBody(t *testing.T, body string) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/api/admin/products", strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	return c, w
+}
+
+func TestAdminCreateProductWithDetail(t *testing.T) {
+	db := newProductTestDB(t)
+	c, w := adminCreateProductBody(t, `{"name":"A","price":10,"category":"Home","detail":"<p onclick=alert(1)>详情</p>"}`)
+	adminCreateProduct(db)(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var p model.Product
+	if err := db.First(&p).Error; err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if !strings.Contains(p.Detail, "详情") {
+		t.Fatalf("detail 未落库: %q", p.Detail)
+	}
+	if strings.Contains(p.Detail, "onclick") {
+		t.Fatalf("detail 未被清洗: %q", p.Detail)
 	}
 }
