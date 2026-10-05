@@ -5,9 +5,9 @@ import { showToast } from "vant";
 import http from "../lib/http";
 
 const router = useRouter();
-const username = ref("");
-const password = ref("");
-const confirm = ref("");
+const username = ref<string>("");
+const password = ref<string>("");
+const confirm = ref<string>("");
 const loading = ref(false);
 
 const passwordRules = [
