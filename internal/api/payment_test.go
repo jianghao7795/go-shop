@@ -71,3 +71,48 @@ func TestMarkPaidIdempotent(t *testing.T) {
 		t.Fatalf("status = %q, want paid", got.Status)
 	}
 }
+
+func TestLoadAlipayConfigUnset(t *testing.T) {
+	t.Setenv("ALIPAY_APP_ID", "")
+	t.Setenv("ALIPAY_PRIVATE_KEY", "")
+	t.Setenv("ALIPAY_PUBLIC_KEY", "")
+	if _, ok := loadAlipayConfig(); ok {
+		t.Fatal("expected unconfigured")
+	}
+}
+
+func TestLoadAlipayConfigSet(t *testing.T) {
+	t.Setenv("ALIPAY_APP_ID", "app-1")
+	t.Setenv("ALIPAY_PRIVATE_KEY", "pk")
+	t.Setenv("ALIPAY_PUBLIC_KEY", "pub")
+	t.Setenv("ALIPAY_PRODUCTION", "true")
+	cfg, ok := loadAlipayConfig()
+	if !ok {
+		t.Fatal("expected configured")
+	}
+	if cfg.appID != "app-1" || cfg.privateKey != "pk" || cfg.publicKey != "pub" || !cfg.production {
+		t.Fatalf("cfg = %+v", cfg)
+	}
+}
+
+func TestNewAlipayPayerUnconfigured(t *testing.T) {
+	t.Setenv("ALIPAY_APP_ID", "")
+	t.Setenv("ALIPAY_PRIVATE_KEY", "")
+	t.Setenv("ALIPAY_PUBLIC_KEY", "")
+	payer, err := newAlipayPayer()
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if payer != nil {
+		t.Fatal("payer should be nil when unconfigured")
+	}
+}
+
+func TestNewAlipayPayerInvalidKey(t *testing.T) {
+	t.Setenv("ALIPAY_APP_ID", "app-1")
+	t.Setenv("ALIPAY_PRIVATE_KEY", "not-a-key")
+	t.Setenv("ALIPAY_PUBLIC_KEY", "not-a-key")
+	if _, err := newAlipayPayer(); err == nil {
+		t.Fatal("expected error for invalid key material")
+	}
+}
