@@ -161,6 +161,7 @@ func Start() {
 	// 商品
 	admin.GET("/products", requirePermission(db, "product:manage"), adminListProducts(db))
 	admin.POST("/products", requirePermission(db, "product:manage"), adminCreateProduct(db))
+	admin.POST("/products/upload", requirePermission(db, "product:manage"), uploadProductImage())
 	admin.PUT("/products/:id", requirePermission(db, "product:manage"), adminUpdateProduct(db))
 	admin.DELETE("/products/:id", requirePermission(db, "product:manage"), adminDeleteProduct(db))
 	admin.PUT("/products/:id/featured", requirePermission(db, "product:manage"), adminToggleFeatured(db))

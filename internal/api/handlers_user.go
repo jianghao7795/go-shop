@@ -153,34 +153,49 @@ func updateProfile(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// saveImage 校验并保存上传图片到 dir，返回可访问的相对 URL；失败时已写好响应并返回 false。
+func saveImage(c *gin.Context, dir, urlPrefix string) (string, bool) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "请选择图片文件"})
+		return "", false
+	}
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	allowed := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
+	if !allowed[ext] {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "仅支持 jpg/png/gif/webp 图片"})
+		return "", false
+	}
+	if file.Size > 2<<20 {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "图片不能超过 2MB"})
+		return "", false
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "保存失败"})
+		return "", false
+	}
+	filename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
+	if err := c.SaveUploadedFile(file, filepath.Join(dir, filename)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "保存失败"})
+		return "", false
+	}
+	return urlPrefix + filename, true
+}
+
 // uploadAvatar 处理头像上传，保存到 uploads/avatars/ 并返回可访问的路径。
 func uploadAvatar() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		file, err := c.FormFile("file")
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"message": "请选择图片文件"})
-			return
+		if url, ok := saveImage(c, "uploads/avatars", "/uploads/avatars/"); ok {
+			c.JSON(http.StatusOK, gin.H{"url": url})
 		}
-		ext := strings.ToLower(filepath.Ext(file.Filename))
-		allowed := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
-		if !allowed[ext] {
-			c.JSON(http.StatusBadRequest, gin.H{"message": "仅支持 jpg/png/gif/webp 图片"})
-			return
+	}
+}
+
+// uploadProductImage 处理商品详情图片上传，保存到 uploads/products/。
+func uploadProductImage() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if url, ok := saveImage(c, "uploads/products", "/uploads/products/"); ok {
+			c.JSON(http.StatusOK, gin.H{"url": url})
 		}
-		if file.Size > 2<<20 {
-			c.JSON(http.StatusBadRequest, gin.H{"message": "图片不能超过 2MB"})
-			return
-		}
-		dir := "uploads/avatars"
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"message": "保存失败"})
-			return
-		}
-		filename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
-		if err := c.SaveUploadedFile(file, filepath.Join(dir, filename)); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"message": "保存失败"})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"url": "/uploads/avatars/" + filename})
 	}
 }
