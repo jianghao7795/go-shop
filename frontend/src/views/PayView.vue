@@ -63,7 +63,14 @@ async function poll() {
       stopPolling();
       errorMsg.value = "支付已关闭，请重新下单";
     }
-  } catch { /* 网络抖动忽略，继续轮询 */ }
+  } catch (err) {
+    const e = err as any;
+    // 接口返回错误（非网络抖动）：提示并停止轮询；无响应的网络抖动则忽略继续
+    if (e?.response) {
+      stopPolling();
+      errorMsg.value = e.response.data?.message || "支付状态查询失败，请稍后重试";
+    }
+  }
 }
 
 function stopPolling() {
