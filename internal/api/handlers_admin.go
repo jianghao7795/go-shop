@@ -89,7 +89,7 @@ func adminUpdateUserStatus(db *gorm.DB) gin.HandlerFunc {
 type productPayload struct {
 	Name          string  `json:"name"`
 	Description   string  `json:"description"`
-	Detail        string  `json:"detail"`
+	Detail        *string `json:"detail"`
 	Price         float64 `json:"price"`
 	OriginalPrice float64 `json:"originalPrice"`
 	Emoji         string  `json:"emoji"`
@@ -154,7 +154,11 @@ func adminCreateProduct(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
 			return
 		}
-		item := model.Product{Name: p.Name, Description: p.Description, Detail: sanitizeProductDetail(p.Detail), Price: p.Price, OriginalPrice: p.OriginalPrice, Emoji: p.Emoji, Color: p.Color, Category: p.Category}
+		detail := ""
+		if p.Detail != nil {
+			detail = sanitizeProductDetail(*p.Detail)
+		}
+		item := model.Product{Name: p.Name, Description: p.Description, Detail: detail, Price: p.Price, OriginalPrice: p.OriginalPrice, Emoji: p.Emoji, Color: p.Color, Category: p.Category}
 		if p.OnShelf != nil {
 			item.OnShelf = *p.OnShelf
 		} else {
@@ -191,7 +195,10 @@ func adminUpdateProduct(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
 			return
 		}
-		updates := map[string]any{"name": p.Name, "description": p.Description, "detail": sanitizeProductDetail(p.Detail), "price": p.Price, "original_price": p.OriginalPrice, "emoji": p.Emoji, "color": p.Color, "category": p.Category}
+		updates := map[string]any{"name": p.Name, "description": p.Description, "price": p.Price, "original_price": p.OriginalPrice, "emoji": p.Emoji, "color": p.Color, "category": p.Category}
+		if p.Detail != nil {
+			updates["detail"] = sanitizeProductDetail(*p.Detail)
+		}
 		if p.OnShelf != nil {
 			updates["on_shelf"] = *p.OnShelf
 		}

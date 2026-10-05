@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -146,5 +147,33 @@ func TestAdminCreateProductWithDetail(t *testing.T) {
 	}
 	if strings.Contains(p.Detail, "onclick") {
 		t.Fatalf("detail 未被清洗: %q", p.Detail)
+	}
+}
+
+func adminUpdateProductBody(t *testing.T, id int, body string) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("PUT", "/api/admin/products/"+strconv.Itoa(int(id)), strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Params = gin.Params{{Key: "id", Value: strconv.Itoa(int(id))}}
+	return c, w
+}
+
+func TestAdminUpdateProductPreservesDetail(t *testing.T) {
+	db := newProductTestDB(t)
+	p := model.Product{Name: "A", Description: "d", Detail: "<p>详情</p>", Price: 10, Category: "Home"}
+	db.Create(&p)
+	// 模拟 toggleShelf：不带 detail 的局部更新，不应清空已有详情
+	c, w := adminUpdateProductBody(t, p.ID, `{"name":"A","description":"d","price":10,"originalPrice":0,"emoji":"","color":"","category":"Home"}`)
+	adminUpdateProduct(db)(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var got model.Product
+	db.First(&got, p.ID)
+	if got.Detail != "<p>详情</p>" {
+		t.Fatalf("detail 被清空: %q", got.Detail)
 	}
 }
