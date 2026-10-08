@@ -91,7 +91,7 @@ onMounted(() => {
         <div v-for="r in reviews" :key="r.id" class="review-item">
           <div class="review-meta">
             <span class="review-user">{{ r.userId }}</span>
-            <Rate :model-value="r.rating" readonly size="14" color="#ff4d67" />
+            <Rate :model-value="r.rating" readonly allow-half size="14" color="#ff4d67" />
           </div>
           <p class="review-content">{{ r.content || "此用户没有填写文字评价" }}</p>
         </div>

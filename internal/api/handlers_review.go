@@ -26,11 +26,11 @@ func listProductReviews(db *gorm.DB) gin.HandlerFunc {
 		db.Where("product_id = ?", pid).Order("id DESC").Find(&reviews)
 		avg := 0.0
 		if len(reviews) > 0 {
-			sum := 0
+			sum := 0.0
 			for _, r := range reviews {
 				sum += r.Rating
 			}
-			avg = float64(sum) / float64(len(reviews))
+			avg = sum / float64(len(reviews))
 		}
 		c.JSON(http.StatusOK, gin.H{"reviews": reviews, "average": avg, "count": len(reviews)})
 	}
@@ -59,9 +59,9 @@ func submitOrderReviews(db *gorm.DB) gin.HandlerFunc {
 		}
 		var req struct {
 			Reviews []struct {
-				ProductID int    `json:"productId"`
-				Rating    int    `json:"rating"`
-				Content   string `json:"content"`
+				ProductID int     `json:"productId"`
+				Rating    float64 `json:"rating"`
+				Content   string  `json:"content"`
 			} `json:"reviews"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil || len(req.Reviews) == 0 {

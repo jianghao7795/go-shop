@@ -12,7 +12,7 @@ type Review struct {
 	UserID    string         `json:"userId" gorm:"index;size:64"`
 	ProductID int            `json:"productId" gorm:"index"`
 	OrderID   uint           `json:"orderId" gorm:"index"`
-	Rating    int            `json:"rating"`
+	Rating    float64        `json:"rating"`
 	Content   string         `json:"content" gorm:"size:500"`
 	CreatedAt time.Time      `json:"createdAt"`
 	UpdatedAt time.Time      `json:"updatedAt"`

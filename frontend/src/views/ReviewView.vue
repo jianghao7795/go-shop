@@ -72,7 +72,7 @@ onMounted(load);
         <div class="review-form">
           <div class="review-rate-row">
             <span>商品评分</span>
-            <Rate :model-value="reviews[it.productId].rating" color="#ff4d67" @update:model-value="(v: number) => setRating(it.productId, v)" />
+            <Rate :model-value="reviews[it.productId].rating" allow-half color="#ff4d67" @update:model-value="(v: number) => setRating(it.productId, v)" />
           </div>
           <van-field v-model="reviews[it.productId].content" type="textarea" rows="2" autosize placeholder="说说你的使用感受吧" />
         </div>
