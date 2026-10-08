@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -176,4 +177,47 @@ func TestAdminUpdateProductPreservesDetail(t *testing.T) {
 	if got.Detail != "<p>详情</p>" {
 		t.Fatalf("detail 被清空: %q", got.Detail)
 	}
+}
+
+func TestAdminUpdateProductWithDetail(t *testing.T) {
+	db := newProductTestDB(t)
+	p := model.Product{Name: "A", Description: "d", Detail: "", Price: 10, Category: "Home"}
+	db.Create(&p)
+	c, w := adminUpdateProductBody(t, p.ID, `{"name":"A","description":"d","price":10,"originalPrice":0,"emoji":"","color":"","category":"Home","detail":"<p>新详情</p>"}`)
+	adminUpdateProduct(db)(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var got model.Product
+	db.First(&got, p.ID)
+	if got.Detail != "<p>新详情</p>" {
+		t.Fatalf("detail = %q, want <p>新详情</p>", got.Detail)
+	}
+}
+
+func TestProductDetailReturnsDetail(t *testing.T) {
+	db := newProductTestDB(t)
+	p := model.Product{Name: "A", Description: "d", Detail: "<p>详情</p>", Price: 10, Category: "Home", OnShelf: true}
+	db.Create(&p)
+	c, w := productDetailCtx(t, p.ID)
+	productDetailHandler(db, true)(c)
+	var body struct {
+		Detail string `json:"detail"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if body.Detail != "<p>详情</p>" {
+		t.Fatalf("detail = %q, want <p>详情</p>", body.Detail)
+	}
+}
+
+func productDetailCtx(t *testing.T, id int) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/api/products/"+strconv.Itoa(id), nil)
+	c.Params = gin.Params{{Key: "id", Value: strconv.Itoa(id)}}
+	return c, w
 }
