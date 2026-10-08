@@ -54,6 +54,11 @@ onBeforeUnmount(() => {
   editor = null;
   toolbar = null;
 });
+
+// 暴露 getHtml 供父组件在保存时直接读取当前内容，避免仅依赖 onChange 的时序问题。
+defineExpose({
+  getHtml: () => (editor ? unresolveDetailHtml(editor.getHtml()) : ""),
+});
 </script>
 
 <template>

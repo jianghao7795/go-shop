@@ -39,6 +39,7 @@ const saving = ref(false);
 const showForm = ref(false);
 const showCategoryPicker = ref(false);
 const editingId = ref<number | null>(null);
+const detailEditor = ref<{ getHtml: () => string }>();
 
 const form = reactive({
   name: "",
@@ -148,6 +149,7 @@ function buildBody(onShelf: boolean) {
 async function submit() {
   saving.value = true;
   try {
+    if (detailEditor.value) form.detail = detailEditor.value.getHtml();
     const body = buildBody(form.onShelf);
     if (editingId.value) {
       await http.put("/api/admin/products/" + editingId.value, body);
@@ -291,7 +293,7 @@ onMounted(() => {
         />
         <van-field label="图文详情">
           <template #input>
-            <RichEditor v-if="showForm" v-model="form.detail" />
+            <RichEditor ref="detailEditor" v-if="showForm" v-model="form.detail" />
           </template>
         </van-field>
         <van-field v-model="form.price" label="价格" type="number" placeholder="0.00" />
