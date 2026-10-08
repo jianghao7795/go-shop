@@ -82,10 +82,6 @@ onMounted(() => {
           <van-cell title="购买数量"><template #value><van-stepper v-model="quantity" min="1" /></template></van-cell>
         </van-cell-group>
       </section>
-      <section v-if="product.detail" class="detail-rich">
-        <h3>商品详情</h3>
-        <div class="detail-rich-content" v-html="resolveDetailHtml(product.detail || '')"></div>
-      </section>
       <section class="detail-reviews">
         <div class="reviews-head">
           <h3>商品评价</h3>
@@ -99,6 +95,10 @@ onMounted(() => {
           </div>
           <p class="review-content">{{ r.content || "此用户没有填写文字评价" }}</p>
         </div>
+      </section>
+      <section v-if="product.detail" class="detail-rich">
+        <h3>商品详情</h3>
+        <div class="detail-rich-content" v-html="resolveDetailHtml(product.detail || '')"></div>
       </section>
 
       <van-action-bar>
