@@ -102,7 +102,7 @@ func newProductTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.Product{}); err != nil {
+	if err := db.AutoMigrate(&model.Product{}, &model.Review{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return db
@@ -220,4 +220,37 @@ func productDetailCtx(t *testing.T, id int) (*gin.Context, *httptest.ResponseRec
 	c.Request = httptest.NewRequest("GET", "/api/products/"+strconv.Itoa(id), nil)
 	c.Params = gin.Params{{Key: "id", Value: strconv.Itoa(id)}}
 	return c, w
+}
+
+func TestAdminListReviewsWithProductName(t *testing.T) {
+	db := newProductTestDB(t)
+	p := model.Product{Name: "商品A", Category: "Home", OnShelf: true}
+	db.Create(&p)
+	db.Create(&model.Review{UserID: "u1", ProductID: p.ID, OrderID: 1, Rating: 4.5, Content: "好用"})
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/api/admin/reviews", nil)
+	adminListReviews(db)(c)
+
+	var body struct {
+		Items []struct {
+			ProductName string  `json:"productName"`
+			Rating      float64 `json:"rating"`
+			Content     string  `json:"content"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(body.Items) != 1 {
+		t.Fatalf("items len = %d, want 1", len(body.Items))
+	}
+	if body.Items[0].ProductName != "商品A" {
+		t.Fatalf("productName = %q, want 商品A", body.Items[0].ProductName)
+	}
+	if body.Items[0].Rating != 4.5 {
+		t.Fatalf("rating = %v, want 4.5", body.Items[0].Rating)
+	}
 }

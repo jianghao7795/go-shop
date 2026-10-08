@@ -26,7 +26,7 @@ type RolePermission struct {
 
 func (RolePermission) TableName() string { return "shop_role_permissions" }
 
-// SeedPermissions 是内置的 6 个初始权限点。
+// SeedPermissions 是内置的初始权限点。
 var SeedPermissions = []Permission{
 	{Code: "product:manage", Name: "商品管理", Path: "/admin/products"},
 	{Code: "category:manage", Name: "分类管理", Path: "/admin/categories"},
@@ -34,4 +34,5 @@ var SeedPermissions = []Permission{
 	{Code: "user:manage", Name: "用户管理", Path: "/admin/users"},
 	{Code: "coupon:manage", Name: "优惠券管理", Path: "/admin/coupons"},
 	{Code: "notification:manage", Name: "通知管理", Path: "/admin/notifications"},
+	{Code: "review:manage", Name: "评价管理", Path: "/admin/reviews"},
 }

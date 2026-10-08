@@ -182,6 +182,8 @@ func Start() {
 	admin.DELETE("/coupons/:id", requirePermission(db, "coupon:manage"), adminDeleteCoupon(db))
 	// 通知
 	admin.POST("/notifications", requirePermission(db, "notification:manage"), adminSendNotification(db, hub))
+	// 评价
+	admin.GET("/reviews", requirePermission(db, "review:manage"), adminListReviews(db))
 
 	router.GET("/api/health", healthHandler(databaseReady))
 	router.GET("/api/categories", listCategories(db, databaseReady))

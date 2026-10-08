@@ -139,6 +139,47 @@ func adminListProducts(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// adminReview 是后台评价列表项：在评价基础上附带商品名。
+type adminReview struct {
+	model.Review
+	ProductName string `json:"productName"`
+}
+
+// adminListReviews 分页返回全部评价（附带商品名）。
+func adminListReviews(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if db == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+			return
+		}
+		page, pageSize := parsePagination(c)
+		var total int64
+		db.Model(&model.Review{}).Count(&total)
+		var reviews []model.Review
+		if err := db.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&reviews).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "查询失败"})
+			return
+		}
+		names := map[int]string{}
+		if len(reviews) > 0 {
+			pids := make([]int, 0, len(reviews))
+			for _, r := range reviews {
+				pids = append(pids, r.ProductID)
+			}
+			var products []model.Product
+			db.Where("id IN ?", pids).Find(&products)
+			for _, p := range products {
+				names[p.ID] = p.Name
+			}
+		}
+		items := make([]adminReview, 0, len(reviews))
+		for _, r := range reviews {
+			items = append(items, adminReview{Review: r, ProductName: names[r.ProductID]})
+		}
+		c.JSON(http.StatusOK, gin.H{"items": items, "total": total, "page": page, "pageSize": pageSize})
+	}
+}
+
 func adminCreateProduct(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var p productPayload
