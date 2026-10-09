@@ -2,12 +2,18 @@ package api
 
 import (
 	"log"
+	"os"
 	"time"
 
 	"gorm.io/gorm"
 
 	"shop/internal/model"
 )
+
+// simulatorsEnabled 返回是否启用后台模拟器（自动发货/营销推送）。默认关闭，仅演示环境开启。
+func simulatorsEnabled() bool {
+	return os.Getenv("ENABLE_SIMULATORS") == "true"
+}
 
 // startSimulators 启动两个后台模拟器，用于演示服务器主动推送：
 // 1) 模拟商家定时发货：把最早的已付款订单改为待收货；

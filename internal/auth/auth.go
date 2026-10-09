@@ -1,8 +1,12 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/base64"
+	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	jwt "github.com/appleboy/gin-jwt/v2"
@@ -35,15 +39,28 @@ func findUserByLogin(db *gorm.DB, identifier string) (*model.User, error) {
 	return nil, gorm.ErrRecordNotFound
 }
 
+// resolveJWTSecret 返回用于签名的密钥：已配置则原样使用，否则生成随机密钥，
+// 避免使用可预测的硬编码默认值（未配置时随机密钥在进程重启后失效）。
+func resolveJWTSecret(configured string) string {
+	if configured != "" {
+		return configured
+	}
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return strconv.FormatInt(time.Now().UnixNano(), 10)
+	}
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
 // New 构建 JWT 认证中间件：仅校验数据库中的注册用户，数据库不可用时登录一律失败。
 func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		secret = "change-this-shop-jwt-secret"
+		log.Println("JWT_SECRET 未设置，已生成临时随机密钥（重启后已登录用户需重新登录）")
 	}
 	return jwt.New(&jwt.GinJWTMiddleware{
 		Realm:       "shop",
-		Key:         []byte(secret),
+		Key:         []byte(resolveJWTSecret(secret)),
 		Timeout:     24 * time.Hour,
 		MaxRefresh:  7 * 24 * time.Hour,
 		IdentityKey: "user",
