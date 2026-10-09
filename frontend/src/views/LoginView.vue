@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { showToast } from "vant";
 import { useUserStore } from "../stores/user";
+import { useShopCart } from "../stores/shop";
 import http from "../lib/http";
 
 const REMEMBER_KEY = "shop_remember";
@@ -39,6 +40,7 @@ async function onSubmit() {
     }
     userStore.setAuth(res.data.token, username.value);
     await userStore.validate();
+    await useShopCart().mergeFromServer();
     showToast("登录成功");
     router.replace(String(route.query.redirect || "/profile"));
   } catch (err) {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { showToast } from "vant";
+import { showConfirmDialog, showToast } from "vant";
 import http from "../lib/http";
 
 interface OrderItem { productId: number; name: string; price: number; quantity: number; emoji: string; color: string; }
@@ -12,6 +12,9 @@ const router = useRouter();
 const active = ref(0);
 const orders = ref<Order[]>([]);
 const loading = ref(false);
+const page = ref(1);
+const total = ref(0);
+const finished = computed(() => orders.value.length >= total.value);
 
 const tabs = [
   { name: "", title: "全部" },
@@ -20,6 +23,7 @@ const tabs = [
   { name: "shipped", title: "待收货" },
   { name: "completed", title: "待评价" },
   { name: "aftersale", title: "售后" },
+  { name: "cancelled", title: "已取消" },
 ];
 
 const statusMap: Record<string, { text: string; color: string }> = {
@@ -29,19 +33,33 @@ const statusMap: Record<string, { text: string; color: string }> = {
   completed: { text: "待评价", color: "#07c160" },
   aftersale: { text: "售后", color: "#ee0a24" },
   finished: { text: "已完成", color: "#969ba5" },
+  cancelled: { text: "已取消", color: "#969ba5" },
 };
 
 async function loadOrders() {
   loading.value = true;
   try {
     const status = tabs[active.value].name;
-    const res = await http.get("/api/orders", { params: status ? { status } : {} });
-    orders.value = res.data;
+    const res = await http.get("/api/orders", { params: { ...(status ? { status } : {}), page: 1, pageSize: 20 } });
+    orders.value = res.data.items;
+    total.value = res.data.total;
+    page.value = 1;
   } catch {
     orders.value = [];
   } finally {
     loading.value = false;
   }
+}
+
+async function loadMore() {
+  if (finished.value || loading.value) return;
+  try {
+    const status = tabs[active.value].name;
+    const res = await http.get("/api/orders", { params: { ...(status ? { status } : {}), page: page.value + 1, pageSize: 20 } });
+    orders.value.push(...res.data.items);
+    total.value = res.data.total;
+    page.value += 1;
+  } catch { /* 忽略 */ }
 }
 
 async function changeStatus(order: Order, status: string, text: string) {
@@ -52,6 +70,20 @@ async function changeStatus(order: Order, status: string, text: string) {
   } catch {
     showToast("操作失败，请稍后重试");
   }
+}
+
+async function cancelOrder(order: Order) {
+  try {
+    await showConfirmDialog({ title: "取消订单", message: "确定取消该订单吗？" });
+  } catch { return; }
+  await changeStatus(order, "cancelled", "取消订单");
+}
+
+async function applyAftersale(order: Order) {
+  try {
+    await showConfirmDialog({ title: "申请售后", message: "确定申请售后吗？" });
+  } catch { return; }
+  await changeStatus(order, "aftersale", "申请售后");
 }
 
 watch(active, loadOrders);
@@ -82,10 +114,15 @@ onMounted(() => {
         <van-cell title="合计" :value="'¥' + order.amount.toFixed(2)" />
         <div class="order-actions">
           <van-button v-if="order.status === 'pending'" size="small" round type="danger" @click="router.push('/pay/' + order.id)">去支付</van-button>
+          <van-button v-if="order.status === 'pending'" size="small" round plain type="default" @click="cancelOrder(order)">取消订单</van-button>
           <van-button v-if="order.status === 'shipped'" size="small" round type="primary" @click="changeStatus(order, 'completed', '确认收货')">确认收货</van-button>
+          <van-button v-if="order.status === 'paid' || order.status === 'shipped'" size="small" round plain type="warning" @click="applyAftersale(order)">申请售后</van-button>
           <van-button v-if="order.status === 'completed'" size="small" round type="success" @click="router.push('/review/' + order.id)">评价</van-button>
         </div>
       </van-cell-group>
+      <div v-if="!finished" class="load-more">
+        <van-button size="small" plain @click="loadMore">加载更多</van-button>
+      </div>
     </template>
   </div>
 </template>

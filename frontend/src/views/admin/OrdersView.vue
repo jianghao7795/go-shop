@@ -20,10 +20,12 @@ interface Order {
 
 const STATUSES = [
   { value: "pending", label: "待付款" },
+  { value: "paid", label: "待发货" },
   { value: "shipped", label: "待收货" },
   { value: "completed", label: "待评价" },
   { value: "aftersale", label: "售后" },
   { value: "finished", label: "已完成" },
+  { value: "cancelled", label: "已取消" },
 ];
 
 const STATUS_MAP: Record<string, string> = STATUSES.reduce(

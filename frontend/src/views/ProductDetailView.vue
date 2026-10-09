@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { Rate, showToast } from "vant";
@@ -14,6 +14,13 @@ const { cartItems } = storeToRefs(shopCart);
 const { add } = shopCart;
 const product = ref<ShopProduct | null>(null);
 const quantity = ref(1);
+const selectedSkuId = ref(0);
+
+const currentPrice = computed(() => {
+  if (!product.value) return 0;
+  const sku = product.value.skus?.find((s) => s.id === selectedSkuId.value);
+  return sku ? sku.price : product.value.price;
+});
 const loading = ref(true);
 const error = ref("");
 const reviews = ref<any[]>([]);
@@ -34,7 +41,8 @@ async function loadProduct() {
 
 function addToCart() {
   if (!product.value) return;
-  for (let i = 0; i < quantity.value; i += 1) add(product.value);
+  const sku = product.value.skus?.find((s) => s.id === selectedSkuId.value);
+  for (let i = 0; i < quantity.value; i += 1) add(product.value, selectedSkuId.value, sku?.specs || "");
   showToast("已加入购物车");
 }
 
@@ -69,7 +77,7 @@ onMounted(() => {
     <template v-else-if="product">
       <div class="detail-image" :style="{ background: product.color }">{{ product.emoji }}</div>
       <section class="detail-main">
-        <div class="detail-price"><span>¥</span>{{ product.price.toFixed(2) }} <del>¥{{ product.originalPrice.toFixed(2) }}</del></div>
+        <div class="detail-price"><span>¥</span>{{ currentPrice.toFixed(2) }} <del>¥{{ product.originalPrice.toFixed(2) }}</del></div>
         <h1>{{ product.name }}</h1>
         <p class="detail-description">{{ product.description }}</p>
         <div class="detail-tags"><span>自营</span><span>极速发货</span><span>7天无理由</span></div>
@@ -77,6 +85,21 @@ onMounted(() => {
           <van-cell title="已售" :value="product.sales + ' 件'" />
           <van-cell title="配送" value="预计明日送达" is-link />
           <van-cell title="服务" value="正品保障 · 破损包退" is-link />
+        </van-cell-group>
+        <van-cell-group v-if="product.skus && product.skus.length" inset class="detail-sku">
+          <van-cell title="规格">
+            <template #value>
+              <div class="sku-options">
+                <span
+                  v-for="sku in product.skus"
+                  :key="sku.id"
+                  class="sku-option"
+                  :class="{ active: selectedSkuId === sku.id }"
+                  @click="selectedSkuId = sku.id"
+                >{{ sku.specs }}</span>
+              </div>
+            </template>
+          </van-cell>
         </van-cell-group>
         <van-cell-group inset class="detail-quantity">
           <van-cell title="购买数量"><template #value><van-stepper v-model="quantity" min="1" /></template></van-cell>
@@ -155,6 +178,10 @@ onMounted(() => {
   color: #1f2430;
 }
 .detail-rich { margin: 12px; padding: 12px; background: #fff; border-radius: 10px; }
+.detail-sku { margin: 12px 0; }
+.sku-options { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.sku-option { padding: 4px 12px; border-radius: 14px; background: #f5f6f8; color: #646a73; font-size: 13px; }
+.sku-option.active { color: #ee0a24; background: #ffecef; font-weight: 600; }
 .detail-rich h3 { margin: 0 0 8px; font-size: 16px; }
 .detail-rich-content { font-size: 14px; color: #1f2430; line-height: 1.7; }
 .detail-rich-content :deep(img) { max-width: 100%; height: auto; display: block; }

@@ -18,6 +18,7 @@ interface Product {
   category: string;
   onShelf: boolean;
   featured: boolean;
+  stock: number;
 }
 
 interface Category {
@@ -40,6 +41,8 @@ const showForm = ref(false);
 const showCategoryPicker = ref(false);
 const editingId = ref<number | null>(null);
 const detailEditor = ref<{ getHtml: () => string }>();
+const skus = ref<any[]>([]);
+const newSku = reactive({ specs: "", price: "", stock: "" });
 
 const form = reactive({
   name: "",
@@ -52,6 +55,7 @@ const form = reactive({
   category: "",
   onShelf: true,
   featured: false,
+  stock: "",
 });
 
 const categoryNames = computed(() => {
@@ -99,6 +103,7 @@ async function loadCategories() {
 
 function openCreate() {
   editingId.value = null;
+  skus.value = [];
   Object.assign(form, {
     name: "",
     description: "",
@@ -110,8 +115,47 @@ function openCreate() {
     category: "",
     onShelf: true,
     featured: false,
+    stock: "100",
   });
   showForm.value = true;
+}
+
+async function loadSkus(productId: number) {
+  try {
+    const res = await http.get("/api/products/" + productId);
+    skus.value = res.data.skus || [];
+  } catch {
+    skus.value = [];
+  }
+}
+
+async function addSku() {
+  if (!editingId.value) return;
+  try {
+    await http.post("/api/admin/products/" + editingId.value + "/skus", {
+      specs: newSku.specs,
+      price: Number(newSku.price) || 0,
+      stock: Number(newSku.stock) || 0,
+    });
+    showToast("已添加");
+    newSku.specs = "";
+    newSku.price = "";
+    newSku.stock = "";
+    loadSkus(editingId.value);
+  } catch (err) {
+    showToast(errMsg(err, "添加失败"));
+  }
+}
+
+async function deleteSku(sku: any) {
+  if (!editingId.value) return;
+  try {
+    await http.delete("/api/admin/skus/" + sku.id);
+    showToast("已删除");
+    loadSkus(editingId.value);
+  } catch (err) {
+    showToast(errMsg(err, "删除失败"));
+  }
 }
 
 function openEdit(p: Product) {
@@ -127,7 +171,9 @@ function openEdit(p: Product) {
     category: p.category,
     onShelf: p.onShelf,
     featured: p.featured,
+    stock: String(p.stock ?? 0),
   });
+  loadSkus(p.id);
   showForm.value = true;
 }
 
@@ -143,6 +189,7 @@ function buildBody(onShelf: boolean) {
     category: form.category,
     onShelf,
     featured: form.featured,
+    stock: Number(form.stock) || 0,
   };
 }
 
@@ -240,7 +287,7 @@ onMounted(() => {
     <table v-else class="admin-table">
       <thead>
         <tr>
-          <th>ID</th><th>名称</th><th>价格</th><th>原价</th>
+          <th>ID</th><th>名称</th><th>价格</th><th>原价</th><th>库存</th>
           <th>分类</th><th>上架</th><th>优选</th><th>操作</th>
         </tr>
       </thead>
@@ -250,6 +297,7 @@ onMounted(() => {
           <td>{{ p.emoji }} {{ p.name }}</td>
           <td>¥{{ p.price }}</td>
           <td>¥{{ p.originalPrice }}</td>
+          <td>{{ p.stock }}</td>
           <td>{{ categoryNames[p.category] || p.category }}</td>
           <td>
             <Switch
@@ -298,6 +346,7 @@ onMounted(() => {
         </van-field>
         <van-field v-model="form.price" label="价格" type="number" placeholder="0.00" />
         <van-field v-model="form.originalPrice" label="原价" type="number" placeholder="0.00" />
+        <van-field v-model="form.stock" label="库存" type="number" placeholder="库存数量" />
         <van-field v-model="form.emoji" label="Emoji" placeholder="如 🍎" />
         <van-field v-model="form.color" label="颜色" placeholder="如 #ff6b6b" />
         <van-field
@@ -314,6 +363,19 @@ onMounted(() => {
         <van-field label="优选好物">
           <template #input><Switch v-model="form.featured" /></template>
         </van-field>
+        <div v-if="editingId" class="sku-editor">
+          <div class="sku-editor-title">规格管理（多规格独立价格/库存）</div>
+          <div v-for="sku in skus" :key="sku.id" class="sku-row">
+            <span>{{ sku.specs }} · ¥{{ sku.price }} · 库存 {{ sku.stock }}</span>
+            <van-button size="mini" type="danger" plain @click="deleteSku(sku)">删除</van-button>
+          </div>
+          <div class="sku-add">
+            <van-field v-model="newSku.specs" label="规格" placeholder="如 红色 / M" />
+            <van-field v-model="newSku.price" label="价格" type="number" placeholder="元" />
+            <van-field v-model="newSku.stock" label="库存" type="number" placeholder="数量" />
+            <van-button size="small" type="primary" plain @click="addSku">添加规格</van-button>
+          </div>
+        </div>
         <div class="form-actions">
           <van-button block type="primary" :loading="saving" @click="submit">保存</van-button>
         </div>
@@ -330,4 +392,11 @@ onMounted(() => {
     </van-popup>
   </div>
 </template>
+
+<style scoped>
+.sku-editor { margin: 8px 16px; padding: 8px; background: #f7f8fa; border-radius: 8px; }
+.sku-editor-title { font-size: 13px; color: #646a73; margin-bottom: 6px; }
+.sku-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; padding: 4px 0; }
+.sku-add { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e5e6eb; }
+</style>
 

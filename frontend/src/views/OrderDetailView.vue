@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
-import { showToast } from "vant";
+import { showConfirmDialog, showToast } from "vant";
 import http from "../lib/http";
 
 interface OrderItem { productId: number; name: string; price: number; quantity: number; emoji: string; color: string; }
@@ -73,6 +73,7 @@ const statusMap: Record<string, { text: string; color: string }> = {
   completed: { text: "待评价", color: "#07c160" },
   aftersale: { text: "售后", color: "#ee0a24" },
   finished: { text: "已完成", color: "#969ba5" },
+  cancelled: { text: "已取消", color: "#969ba5" },
 };
 
 async function load() {
@@ -94,6 +95,20 @@ async function changeStatus(status: string, text: string) {
     showToast(text + "成功");
     load();
   } catch { /* 忽略 */ }
+}
+
+async function cancelOrder() {
+  try {
+    await showConfirmDialog({ title: "取消订单", message: "确定取消该订单吗？" });
+  } catch { return; }
+  await changeStatus("cancelled", "取消订单");
+}
+
+async function applyAftersale() {
+  try {
+    await showConfirmDialog({ title: "申请售后", message: "确定申请售后吗？" });
+  } catch { return; }
+  await changeStatus("aftersale", "申请售后");
 }
 
 onMounted(async () => {
@@ -133,7 +148,9 @@ onMounted(async () => {
       </van-cell-group>
       <div class="detail-actions-bar">
         <van-button v-if="order.status === 'pending'" round type="danger" @click="$router.push('/pay/' + order.id)">去支付</van-button>
+        <van-button v-if="order.status === 'pending'" round plain type="default" @click="cancelOrder()">取消订单</van-button>
         <van-button v-if="order.status === 'shipped'" round type="primary" @click="changeStatus('completed', '确认收货')">确认收货</van-button>
+        <van-button v-if="order.status === 'paid' || order.status === 'shipped'" round plain type="warning" @click="applyAftersale()">申请售后</van-button>
         <van-button v-if="order.status === 'completed'" round type="success" @click="$router.push('/review/' + order.id)">评价</van-button>
       </div>
     </template>

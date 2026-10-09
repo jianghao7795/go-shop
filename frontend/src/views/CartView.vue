@@ -3,7 +3,7 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { showConfirmDialog, showToast } from "vant";
-import { useShopCart, type ShopProduct } from "../stores/shop";
+import { useShopCart, cartKey, type ShopProduct } from "../stores/shop";
 
 const router = useRouter();
 const shopCart = useShopCart();
@@ -11,15 +11,16 @@ const { cartItems, checkedCount, checkedTotal, allChecked } = storeToRefs(shopCa
 const { increase, decrease, toggleChecked, setAllChecked, remove, removeChecked } = shopCart;
 const editing = ref(false);
 
-async function onMinus(item: { product: ShopProduct; quantity: number }) {
+async function onMinus(item: { product: ShopProduct; skuId: number; quantity: number }) {
+  const key = cartKey(item.product.id, item.skuId);
   if (item.quantity <= 1) {
     try {
       await showConfirmDialog({ title: "删除商品", message: `确定删除「${item.product.name}」吗？` });
-      remove([item.product.id]);
+      remove([key]);
     } catch { /* 用户取消 */ }
     return;
   }
-  decrease(item.product.id);
+  decrease(key);
 }
 
 function checkout() {
@@ -51,15 +52,15 @@ function removeCheckedItems() {
     <van-empty v-if="!cartItems.length" image="https://fastly.jsdelivr.net/npm/@vant/assets/custom-empty-image.png" description="购物车还是空的" />
     <template v-else>
       <van-cell-group inset class="cart-list">
-        <van-cell v-for="item in cartItems" :key="item.product.id">
+        <van-cell v-for="item in cartItems" :key="cartKey(item.product.id, item.skuId)">
           <template #icon>
             <div class="cart-row">
-              <van-checkbox :model-value="item.checked" @click="toggleChecked(item.product.id)" />
+              <van-checkbox :model-value="item.checked" @click="toggleChecked(cartKey(item.product.id, item.skuId))" />
               <div class="cart-thumb" :style="{ background: item.product.color }">{{ item.product.emoji }}</div>
             </div>
           </template>
-          <template #title><strong>{{ item.product.name }}</strong><div class="cart-desc">{{ item.product.description }}</div></template>
-          <template #value><div class="cart-price">¥{{ item.product.price.toFixed(2) }}<van-stepper :model-value="item.quantity" min="1" @minus="onMinus(item)" @plus="increase(item.product.id)" /></div></template>
+          <template #title><strong>{{ item.product.name }}</strong><div class="cart-desc">{{ item.specs || item.product.description }}</div></template>
+          <template #value><div class="cart-price">¥{{ item.product.price.toFixed(2) }}<van-stepper :model-value="item.quantity" min="1" @minus="onMinus(item)" @plus="increase(cartKey(item.product.id, item.skuId))" /></div></template>
         </van-cell>
       </van-cell-group>
       <div class="cart-submit">

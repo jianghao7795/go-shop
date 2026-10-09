@@ -16,6 +16,9 @@ const assignLoading = ref(false);
 const savingRoles = ref(false);
 const currentUser = ref<any>(null);
 const selectedRoleIds = ref<number[]>([]);
+const showResetPwd = ref(false);
+const resetPwdUser = ref<any>(null);
+const resetPwd = ref("");
 
 async function load() {
   const res = await http.get("/api/admin/users", { params: { page: page.value, pageSize } });
@@ -76,6 +79,25 @@ async function submitAssign() {
   }
 }
 
+function openResetPwd(u: any) {
+  resetPwdUser.value = u;
+  resetPwd.value = "";
+  showResetPwd.value = true;
+}
+
+async function submitResetPwd() {
+  if (!resetPwdUser.value) return;
+  try {
+    await http.put("/api/admin/users/" + resetPwdUser.value.id + "/password", {
+      password: resetPwd.value,
+    });
+    showToast("密码已重置");
+    showResetPwd.value = false;
+  } catch (err) {
+    showToast(errMsg(err, "重置失败"));
+  }
+}
+
 onMounted(load);
 </script>
 
@@ -92,6 +114,7 @@ onMounted(load);
           <td class="admin-ops">
             <van-button size="small" @click="openAssign(u)">分配角色</van-button>
             <van-button size="small" @click="toggleStatus(u)">{{ u.status === 1 ? "禁用" : "启用" }}</van-button>
+            <van-button size="small" type="warning" @click="openResetPwd(u)">重置密码</van-button>
           </td>
         </tr>
       </tbody>
@@ -116,6 +139,16 @@ onMounted(load);
         </div>
         <div class="form-actions">
           <van-button block type="primary" :loading="savingRoles" @click="submitAssign">保存</van-button>
+        </div>
+      </div>
+    </van-popup>
+
+    <van-popup v-model:show="showResetPwd" position="bottom" round>
+      <div class="form-popup">
+        <h3>重置密码 - {{ resetPwdUser?.username }}</h3>
+        <van-field v-model="resetPwd" type="password" label="新密码" placeholder="6-20 位" />
+        <div class="form-actions">
+          <van-button block type="primary" @click="submitResetPwd">确认重置</van-button>
         </div>
       </div>
     </van-popup>

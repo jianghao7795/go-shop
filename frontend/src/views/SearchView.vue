@@ -26,6 +26,14 @@ const suggestions = ref<string[]>([]);
 const history = ref<string[]>([]);
 const loading = ref(false);
 const searched = ref(false);
+const sort = ref("");
+const sortOptions = [
+  { text: "综合", value: "" },
+  { text: "价格↑", value: "price_asc" },
+  { text: "价格↓", value: "price_desc" },
+  { text: "销量", value: "sales_desc" },
+  { text: "评分", value: "rating_desc" },
+];
 
 function loadHistory() {
   try {
@@ -53,7 +61,7 @@ async function doSearch(word: string) {
   suggestions.value = [];
   loading.value = true;
   try {
-    const res = await http.get("/api/products", { params: { search: word } });
+    const res = await http.get("/api/products", { params: { search: word, sort: sort.value } });
     results.value = res.data;
     saveHistory(word);
   } catch {
@@ -130,6 +138,15 @@ onMounted(loadHistory);
 
       <!-- 搜索结果 -->
       <template v-else-if="searched">
+        <div class="sort-bar">
+          <span
+            v-for="o in sortOptions"
+            :key="o.value"
+            class="sort-item"
+            :class="{ active: sort === o.value }"
+            @click="sort = o.value; doSearch(query)"
+          >{{ o.text }}</span>
+        </div>
         <van-loading v-if="loading" class="loading" color="#ff4d67" />
         <van-empty v-else-if="!results.length" description="没有找到相关商品" />
         <div v-else class="product-grid">
@@ -167,6 +184,25 @@ onMounted(loadHistory);
 }
 .search-content {
   padding: 0 12px 20px;
+}
+.sort-bar {
+  display: flex;
+  gap: 8px;
+  padding: 10px 4px;
+  overflow-x: auto;
+}
+.sort-item {
+  flex: none;
+  padding: 4px 12px;
+  border-radius: 14px;
+  background: #fff;
+  color: #646a73;
+  font-size: 13px;
+}
+.sort-item.active {
+  color: #ff4d67;
+  background: #fff0f2;
+  font-weight: 600;
 }
 .suggest-list {
   background: #fff;
