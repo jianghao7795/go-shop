@@ -23,7 +23,7 @@ export const useUserStore = defineStore("user", () => {
   const permissions = ref<string[]>([]);
   const isLoggedIn = computed(() => !!token.value);
   const displayName = computed(() => nickname.value || username.value);
-  const isAdmin = computed(() => permissions.value.length > 0);
+  const isAdmin = computed(() => permissions.value.some((p) => p.endsWith(":manage")));
 
   function hasPerm(code: string) {
     return permissions.value.includes(code);

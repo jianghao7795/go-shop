@@ -79,6 +79,17 @@ func TestSaveImageRejectsNonImage(t *testing.T) {
 	}
 }
 
+func TestExtractUploadPaths(t *testing.T) {
+	html := `<p><img src="/uploads/products/a.png"><img src="/uploads/avatars/b.jpg"></p>`
+	paths := extractUploadPaths(html)
+	if len(paths) != 2 || paths[0] != "/uploads/products/a.png" || paths[1] != "/uploads/avatars/b.jpg" {
+		t.Fatalf("paths = %v", paths)
+	}
+	if len(extractUploadPaths("no images here")) != 0 {
+		t.Fatal("should be empty")
+	}
+}
+
 func TestNoSniffMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
