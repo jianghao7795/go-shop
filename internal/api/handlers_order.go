@@ -216,7 +216,7 @@ func listOrders(db *gorm.DB) gin.HandlerFunc {
 		}
 		var total int64
 		query.Count(&total)
-		var orders []model.Order
+		orders := make([]model.Order, 0)
 		query.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&orders)
 		c.JSON(http.StatusOK, gin.H{"items": orders, "total": total, "page": page, "pageSize": pageSize})
 	}

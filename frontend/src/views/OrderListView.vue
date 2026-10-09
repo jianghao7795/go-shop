@@ -41,7 +41,7 @@ async function loadOrders() {
   try {
     const status = tabs[active.value].name;
     const res = await http.get("/api/orders", { params: { ...(status ? { status } : {}), page: 1, pageSize: 20 } });
-    orders.value = res.data.items;
+    orders.value = res.data.items || [];
     total.value = res.data.total;
     page.value = 1;
   } catch {
@@ -56,7 +56,7 @@ async function loadMore() {
   try {
     const status = tabs[active.value].name;
     const res = await http.get("/api/orders", { params: { ...(status ? { status } : {}), page: page.value + 1, pageSize: 20 } });
-    orders.value.push(...res.data.items);
+    orders.value.push(...(res.data.items || []));
     total.value = res.data.total;
     page.value += 1;
   } catch { /* 忽略 */ }
