@@ -62,8 +62,7 @@ func streamNotifications(hub *notificationHub) gin.HandlerFunc {
 
 func listNotifications(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var list []model.Notification
@@ -74,8 +73,7 @@ func listNotifications(db *gorm.DB) gin.HandlerFunc {
 
 func unreadCount(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var count int64
@@ -86,8 +84,7 @@ func unreadCount(db *gorm.DB) gin.HandlerFunc {
 
 func markNotificationRead(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		id, err := strconv.Atoi(c.Param("id"))
@@ -102,8 +99,7 @@ func markNotificationRead(db *gorm.DB) gin.HandlerFunc {
 
 func markAllNotificationsRead(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		db.Model(&model.Notification{}).Where("user_id = ?", currentUser(c)).Update("read", true)
@@ -113,8 +109,7 @@ func markAllNotificationsRead(db *gorm.DB) gin.HandlerFunc {
 
 func deleteNotification(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		id, err := strconv.Atoi(c.Param("id"))
@@ -129,8 +124,7 @@ func deleteNotification(db *gorm.DB) gin.HandlerFunc {
 
 func clearNotifications(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		db.Where("user_id = ?", currentUser(c)).Delete(&model.Notification{})

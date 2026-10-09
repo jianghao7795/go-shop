@@ -19,20 +19,96 @@ import (
 	"shop/internal/model"
 )
 
-// markPaid 幂等落库：仅当订单仍是待付款时，标记为已支付并写入支付宝交易号。
+// markPaid 幂等落库：仅当订单仍是待付款时，认领为已支付并扣减库存。
+// 支付时才扣库存以杜绝超卖；任一商品库存不足则整单标记售后（退款），不扣库存。
 func markPaid(db *gorm.DB, orderID uint, tradeNo string) error {
 	if tradeNo == "" {
 		return fmt.Errorf("支付宝交易号为空")
 	}
+	var order model.Order
+	if err := db.Where("id = ?", orderID).First(&order).Error; err != nil {
+		return err
+	}
 	now := time.Now()
-	return db.Model(&model.Order{}).
+	// 原子认领：只有把 pending 改成 paid 的那次调用才继续，保证并发幂等。
+	res := db.Model(&model.Order{}).
 		Where("id = ? AND status = ?", orderID, model.OrderStatusPending).
 		Updates(map[string]any{
 			"status":     model.OrderStatusPaid,
 			"trade_no":   tradeNo,
 			"pay_method": "alipay",
 			"paid_at":    &now,
-		}).Error
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return nil // 幂等：别的调用已处理
+	}
+	// 认领成功，扣库存 + 核销券；任一失败则回补已扣并转售后。
+	var deducted []model.OrderItem
+	fail := false
+	for _, it := range order.Items {
+		if it.ProductID == 0 || it.Quantity <= 0 {
+			continue
+		}
+		var r *gorm.DB
+		if it.SkuID > 0 {
+			r = db.Model(&model.ProductSku{}).Where("id = ? AND stock >= ?", it.SkuID, it.Quantity).
+				Update("stock", gorm.Expr("stock - ?", it.Quantity))
+		} else {
+			r = db.Model(&model.Product{}).Where("id = ? AND stock >= ?", it.ProductID, it.Quantity).
+				Update("stock", gorm.Expr("stock - ?", it.Quantity))
+		}
+		if r.Error != nil {
+			return r.Error
+		}
+		if r.RowsAffected == 0 {
+			fail = true
+			break
+		}
+		deducted = append(deducted, it)
+	}
+	if !fail && order.UserCouponID > 0 {
+		r := db.Model(&model.UserCoupon{}).
+			Where("id = ? AND user_id = ? AND status = ?", order.UserCouponID, order.UserID, model.UserCouponStatusUnused).
+			Updates(map[string]any{
+				"status":        model.UserCouponStatusUsed,
+				"used_order_no": order.OrderNo,
+				"used_at":       &now,
+			})
+		if r.Error != nil {
+			return r.Error
+		}
+		if r.RowsAffected == 0 {
+			fail = true
+		}
+	}
+	if fail {
+		for _, d := range deducted {
+			if d.SkuID > 0 {
+				db.Model(&model.ProductSku{}).Where("id = ?", d.SkuID).
+					Update("stock", gorm.Expr("stock + ?", d.Quantity))
+			} else {
+				db.Model(&model.Product{}).Where("id = ?", d.ProductID).
+					Update("stock", gorm.Expr("stock + ?", d.Quantity))
+			}
+		}
+		log.Printf("order %s paid but stock/coupon unavailable", order.OrderNo)
+		return db.Model(&model.Order{}).Where("id = ?", orderID).
+			Update("status", model.OrderStatusAftersale).Error
+	}
+	// 全部成功：累加销量。
+	for _, it := range order.Items {
+		if it.ProductID == 0 || it.Quantity <= 0 {
+			continue
+		}
+		if err := db.Model(&model.Product{}).Where("id = ?", it.ProductID).
+			Update("sales", gorm.Expr("sales + ?", it.Quantity)).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // 支付宝交易状态（与 SDK 的 TradeStatus 字符串一一对应）。
@@ -199,8 +275,8 @@ func handleAlipayNotify(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
 		if status == alipayStatusSuccess || status == alipayStatusFinished {
 			var order model.Order
 			if db.Where("order_no = ?", outTradeNo).First(&order).Error == nil {
-				if totalAmount != "" && totalAmount != fmt.Sprintf("%.2f", order.Amount) {
-					log.Printf("alipay notify amount mismatch: order %s notify %s want %.2f", order.OrderNo, totalAmount, order.Amount)
+				if totalAmount != "" && totalAmount != order.Amount.YuanString() {
+					log.Printf("alipay notify amount mismatch: order %s notify %s want %s", order.OrderNo, totalAmount, order.Amount.YuanString())
 					c.String(http.StatusOK, "success")
 					return
 				}

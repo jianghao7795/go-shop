@@ -20,8 +20,7 @@ func currentUser(c *gin.Context) string {
 
 func listAddresses(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var addrs []model.Address
@@ -32,8 +31,7 @@ func listAddresses(db *gorm.DB) gin.HandlerFunc {
 
 func createAddress(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var req struct {
@@ -70,8 +68,7 @@ func createAddress(db *gorm.DB) gin.HandlerFunc {
 
 func updateAddress(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		id, err := strconv.Atoi(c.Param("id"))
@@ -113,8 +110,7 @@ func updateAddress(db *gorm.DB) gin.HandlerFunc {
 
 func deleteAddress(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		id, err := strconv.Atoi(c.Param("id"))
@@ -129,8 +125,7 @@ func deleteAddress(db *gorm.DB) gin.HandlerFunc {
 
 func setDefaultAddress(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		id, err := strconv.Atoi(c.Param("id"))

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,7 +76,51 @@ func registerHandler(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "注册失败，请稍后重试"})
 			return
 		}
+		// 注册即送新人券（券模板中的第一张）。
+		var newCoupon model.Coupon
+		if db.Order("id ASC").First(&newCoupon).Error == nil {
+			db.Create(&model.UserCoupon{UserID: req.Username, CouponID: newCoupon.ID, Status: model.UserCouponStatusUnused})
+		}
 		c.JSON(http.StatusOK, gin.H{"message": "注册成功", "username": req.Username})
+	}
+}
+
+// adminResetPassword 管理员重置用户密码。
+func adminResetPassword(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "非法用户 ID"})
+			return
+		}
+		var req struct {
+			Password string `json:"password" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "密码不能为空"})
+			return
+		}
+		if len(req.Password) < 6 || len(req.Password) > 20 {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "密码长度需为 6-20 位"})
+			return
+		}
+		if !dbRequired(c, db) {
+			return
+		}
+		if err := db.First(&model.User{}, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "用户不存在"})
+			return
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "密码加密失败"})
+			return
+		}
+		if err := db.Model(&model.User{}).Where("id = ?", id).Update("password", string(hash)).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "重置失败"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "密码已重置"})
 	}
 }
 
@@ -95,8 +140,7 @@ func profileJSON(user model.User, perms []string) gin.H {
 // meHandler 返回当前登录用户的完整资料。
 func meHandler(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var user model.User
@@ -120,8 +164,7 @@ func updateProfile(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		username := currentUser(c)
@@ -210,5 +253,20 @@ func uploadProductImage() gin.HandlerFunc {
 		if url, ok := saveImage(c, "uploads/products", "/uploads/products/"); ok {
 			c.JSON(http.StatusOK, gin.H{"url": url})
 		}
+	}
+}
+
+// uploadPathRe 匹配 HTML 中 /uploads/ 开头的文件路径。
+var uploadPathRe = regexp.MustCompile(`/uploads/[^\s"'<>]+`)
+
+// extractUploadPaths 从 HTML 中提取 /uploads/ 开头的文件路径。
+func extractUploadPaths(html string) []string {
+	return uploadPathRe.FindAllString(html, -1)
+}
+
+// deleteUploadedFiles 删除 HTML 中引用的上传文件（忽略错误）。
+func deleteUploadedFiles(html string) {
+	for _, p := range extractUploadPaths(html) {
+		os.Remove(strings.TrimPrefix(p, "/"))
 	}
 }

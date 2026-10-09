@@ -18,21 +18,17 @@ func listProductReviews(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "非法商品 ID"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
+		var total int64
+		db.Model(&model.Review{}).Where("product_id = ?", pid).Count(&total)
+		var avg float64
+		db.Model(&model.Review{}).Where("product_id = ?", pid).Select("COALESCE(AVG(rating), 0)").Scan(&avg)
+		page, pageSize := parsePagination(c)
 		var reviews []model.Review
-		db.Where("product_id = ?", pid).Order("id DESC").Find(&reviews)
-		avg := 0.0
-		if len(reviews) > 0 {
-			sum := 0.0
-			for _, r := range reviews {
-				sum += r.Rating
-			}
-			avg = sum / float64(len(reviews))
-		}
-		c.JSON(http.StatusOK, gin.H{"reviews": reviews, "average": avg, "count": len(reviews)})
+		db.Where("product_id = ?", pid).Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&reviews)
+		c.JSON(http.StatusOK, gin.H{"reviews": reviews, "average": avg, "count": total, "page": page, "pageSize": pageSize})
 	}
 }
 
@@ -44,8 +40,7 @@ func submitOrderReviews(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "无效的订单"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var order model.Order
@@ -93,6 +88,12 @@ func submitOrderReviews(db *gorm.DB) gin.HandlerFunc {
 				Rating:    r.Rating,
 				Content:   r.Content,
 			})
+		}
+		// 更新各商品平均评分，回流到商品表供列表展示。
+		for _, r := range req.Reviews {
+			var avg float64
+			db.Model(&model.Review{}).Where("product_id = ?", r.ProductID).Select("COALESCE(AVG(rating), 0)").Scan(&avg)
+			db.Model(&model.Product{}).Where("id = ?", r.ProductID).Update("rating", avg)
 		}
 		db.Model(&model.Order{}).Where("id = ?", id).Update("status", model.OrderStatusFinished)
 		c.JSON(http.StatusOK, gin.H{"message": "评价成功"})

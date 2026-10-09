@@ -17,6 +17,7 @@ var statusText = map[string]string{
 	model.OrderStatusCompleted: "待评价",
 	model.OrderStatusAftersale: "售后",
 	model.OrderStatusFinished:  "已完成",
+	model.OrderStatusCancelled: "已取消",
 }
 
 // notificationHub 维护每个用户到其订阅通道集合的映射，用于把通知实时推给在线客户端。

@@ -10,8 +10,8 @@ import (
 type Coupon struct {
 	ID        uint           `json:"id" gorm:"primaryKey"`
 	Title     string         `json:"title" gorm:"size:64"`
-	Amount    int            `json:"amount"`
-	MinAmount int            `json:"minAmount"`
+	Amount    Price          `json:"amount"`
+	MinAmount Price          `json:"minAmount"`
 	Condition string         `json:"condition" gorm:"size:64"`
 	StartAt   time.Time      `json:"startAt"`
 	EndAt     time.Time      `json:"endAt"`
@@ -33,8 +33,8 @@ var couponStart, couponEnd = DefaultCouponPeriod()
 
 // Coupons 是内置优惠券种子数据，也用作数据库不可用时的兜底。
 var Coupons = []Coupon{
-	{Title: "新人专享券", Amount: 10, MinAmount: 99, Condition: "满 99 元可用", StartAt: couponStart, EndAt: couponEnd},
-	{Title: "全场通用券", Amount: 20, MinAmount: 199, Condition: "满 199 元可用", StartAt: couponStart, EndAt: couponEnd},
-	{Title: "数码品类券", Amount: 50, MinAmount: 499, Condition: "满 499 元可用", StartAt: couponStart, EndAt: couponEnd},
-	{Title: "满减优惠券", Amount: 100, MinAmount: 999, Condition: "满 999 元可用", StartAt: couponStart, EndAt: couponEnd},
+	{Title: "新人专享券", Amount: 1000, MinAmount: 9900, Condition: "满 99 元可用", StartAt: couponStart, EndAt: couponEnd},
+	{Title: "全场通用券", Amount: 2000, MinAmount: 19900, Condition: "满 199 元可用", StartAt: couponStart, EndAt: couponEnd},
+	{Title: "数码品类券", Amount: 5000, MinAmount: 49900, Condition: "满 499 元可用", StartAt: couponStart, EndAt: couponEnd},
+	{Title: "满减优惠券", Amount: 10000, MinAmount: 99900, Condition: "满 999 元可用", StartAt: couponStart, EndAt: couponEnd},
 }

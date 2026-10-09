@@ -34,8 +34,7 @@ func parsePagination(c *gin.Context) (page, pageSize int) {
 // adminListUsers 分页返回全部用户（含昵称/手机号/状态）。
 func adminListUsers(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		page, pageSize := parsePagination(c)
@@ -65,8 +64,7 @@ func adminUpdateUserStatus(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "status 必须是 0 或 1"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var target model.User
@@ -87,16 +85,17 @@ func adminUpdateUserStatus(db *gorm.DB) gin.HandlerFunc {
 }
 
 type productPayload struct {
-	Name          string  `json:"name"`
-	Description   string  `json:"description"`
-	Detail        *string `json:"detail"`
-	Price         float64 `json:"price"`
-	OriginalPrice float64 `json:"originalPrice"`
-	Emoji         string  `json:"emoji"`
-	Color         string  `json:"color"`
-	Category      string  `json:"category"`
-	OnShelf       *bool   `json:"onShelf"`
-	Featured      *bool   `json:"featured"`
+	Name          string      `json:"name"`
+	Description   string      `json:"description"`
+	Detail        *string     `json:"detail"`
+	Price         model.Price `json:"price"`
+	OriginalPrice model.Price `json:"originalPrice"`
+	Emoji         string      `json:"emoji"`
+	Color         string      `json:"color"`
+	Category      string      `json:"category"`
+	OnShelf       *bool       `json:"onShelf"`
+	Featured      *bool       `json:"featured"`
+	Stock         *int        `json:"stock"`
 }
 
 func validateProduct(p productPayload) string {
@@ -105,6 +104,9 @@ func validateProduct(p productPayload) string {
 	}
 	if p.Price < 0 || p.OriginalPrice < 0 {
 		return "价格不能为负"
+	}
+	if p.Stock != nil && *p.Stock < 0 {
+		return "库存不能为负"
 	}
 	if strings.TrimSpace(p.Category) == "" {
 		return "请选择分类"
@@ -123,8 +125,7 @@ func sanitizeProductDetail(html string) string {
 
 func adminListProducts(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		page, pageSize := parsePagination(c)
@@ -148,8 +149,7 @@ type adminReview struct {
 // adminListReviews 分页返回全部评价（附带商品名）。
 func adminListReviews(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		page, pageSize := parsePagination(c)
@@ -191,8 +191,7 @@ func adminCreateProduct(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		detail := ""
@@ -207,6 +206,11 @@ func adminCreateProduct(db *gorm.DB) gin.HandlerFunc {
 		}
 		if p.Featured != nil {
 			item.Featured = *p.Featured
+		}
+		if p.Stock != nil {
+			item.Stock = *p.Stock
+		} else {
+			item.Stock = 100
 		}
 		if err := db.Create(&item).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "创建失败"})
@@ -232,8 +236,7 @@ func adminUpdateProduct(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		updates := map[string]any{"name": p.Name, "description": p.Description, "price": p.Price, "original_price": p.OriginalPrice, "emoji": p.Emoji, "color": p.Color, "category": p.Category}
@@ -245,6 +248,9 @@ func adminUpdateProduct(db *gorm.DB) gin.HandlerFunc {
 		}
 		if p.Featured != nil {
 			updates["featured"] = *p.Featured
+		}
+		if p.Stock != nil {
+			updates["stock"] = *p.Stock
 		}
 		if err := db.First(&model.Product{}, id).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"message": "商品不存在"})
@@ -265,10 +271,15 @@ func adminDeleteProduct(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "非法商品 ID"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
+		var product model.Product
+		if err := db.First(&product, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "商品不存在"})
+			return
+		}
+		deleteUploadedFiles(product.Detail)
 		res := db.Delete(&model.Product{}, id)
 		if res.Error != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "删除失败"})
@@ -297,8 +308,7 @@ func adminToggleFeatured(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "请求格式错误"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		if err := db.First(&model.Product{}, id).Error; err != nil {
@@ -334,8 +344,7 @@ func isDuplicateKey(err error) bool {
 
 func adminListCategories(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var items []model.Category
@@ -358,8 +367,7 @@ func adminCreateCategory(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var existing model.Category
@@ -396,8 +404,7 @@ func adminUpdateCategory(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var existing model.Category
@@ -429,8 +436,7 @@ func adminDeleteCategory(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "非法分类 ID"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		res := db.Delete(&model.Category{}, id)
@@ -449,8 +455,7 @@ func adminDeleteCategory(db *gorm.DB) gin.HandlerFunc {
 // adminListOrders 分页返回全部订单（可选 ?status= 过滤，无用户隔离）。
 func adminListOrders(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		page, pageSize := parsePagination(c)
@@ -478,8 +483,7 @@ func adminGetOrder(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "无效的订单"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var order model.Order
@@ -494,8 +498,7 @@ func adminGetOrder(db *gorm.DB) gin.HandlerFunc {
 // adminUpdateOrderStatus 管理员更新任意订单状态，并通知订单所属用户。
 func adminUpdateOrderStatus(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		id, err := strconv.Atoi(c.Param("id"))
@@ -511,7 +514,7 @@ func adminUpdateOrderStatus(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
 			return
 		}
 		switch req.Status {
-		case model.OrderStatusPending, model.OrderStatusPaid, model.OrderStatusShipped, model.OrderStatusCompleted, model.OrderStatusAftersale, model.OrderStatusFinished:
+		case model.OrderStatusPending, model.OrderStatusPaid, model.OrderStatusShipped, model.OrderStatusCompleted, model.OrderStatusAftersale, model.OrderStatusFinished, model.OrderStatusCancelled:
 		default:
 			c.JSON(http.StatusBadRequest, gin.H{"message": "非法状态"})
 			return
@@ -536,12 +539,12 @@ func adminUpdateOrderStatus(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
 }
 
 type couponPayload struct {
-	Title     string `json:"title"`
-	Amount    int    `json:"amount"`
-	MinAmount int    `json:"minAmount"`
-	Condition string `json:"condition"`
-	StartAt   string `json:"startAt"` // 2006-01-02 15:04:05
-	EndAt     string `json:"endAt"`
+	Title     string      `json:"title"`
+	Amount    model.Price `json:"amount"`
+	MinAmount model.Price `json:"minAmount"`
+	Condition string      `json:"condition"`
+	StartAt   string      `json:"startAt"` // 2006-01-02 15:04:05
+	EndAt     string      `json:"endAt"`
 }
 
 func validateCoupon(p couponPayload) string {
@@ -595,8 +598,7 @@ func parseCouponPeriod(p couponPayload) (time.Time, time.Time, bool) {
 
 func adminListCoupons(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var items []model.Coupon
@@ -624,8 +626,7 @@ func adminCreateCoupon(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "有效期不合法"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		item := model.Coupon{Title: p.Title, Amount: p.Amount, MinAmount: p.MinAmount, Condition: p.Condition, StartAt: startAt, EndAt: endAt}
@@ -658,8 +659,7 @@ func adminUpdateCoupon(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "有效期不合法"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		updates := map[string]any{"title": p.Title, "amount": p.Amount, "min_amount": p.MinAmount, "condition": p.Condition, "start_at": startAt, "end_at": endAt}
@@ -682,8 +682,7 @@ func adminDeleteCoupon(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "非法优惠券 ID"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		res := db.Delete(&model.Coupon{}, id)
@@ -712,8 +711,7 @@ func adminSendNotification(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "标题和内容不能为空"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		username := strings.TrimSpace(req.Username)
@@ -800,8 +798,7 @@ func rewriteRolePermissions(tx *gorm.DB, roleID uint, permIDs []uint) error {
 
 func adminListRoles(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var items []model.Role
@@ -829,8 +826,7 @@ func adminCreateRole(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		// 校验权限 ID 都存在
@@ -889,8 +885,7 @@ func adminUpdateRole(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": msg})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var existing model.Role
@@ -945,8 +940,7 @@ func adminDeleteRole(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "非法角色 ID"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var existing model.Role
@@ -978,8 +972,7 @@ func adminDeleteRole(db *gorm.DB) gin.HandlerFunc {
 // adminListPermissions 返回全部权限点（按 id 升序）。
 func adminListPermissions(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var items []model.Permission
@@ -1011,8 +1004,7 @@ func adminCreatePermission(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "code 和名称不能为空"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var existing model.Permission
@@ -1041,8 +1033,7 @@ func adminDeletePermission(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "非法权限 ID"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		var cnt int64
@@ -1064,6 +1055,71 @@ func adminDeletePermission(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// adminCreateSku 给商品添加一个规格（独立价格与库存）。
+func adminCreateSku(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		pid, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "非法商品 ID"})
+			return
+		}
+		var req struct {
+			Specs string      `json:"specs"`
+			Price model.Price `json:"price"`
+			Stock int         `json:"stock"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "请求格式错误"})
+			return
+		}
+		if strings.TrimSpace(req.Specs) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "规格不能为空"})
+			return
+		}
+		if req.Price < 0 || req.Stock < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "价格或库存不能为负"})
+			return
+		}
+		if !dbRequired(c, db) {
+			return
+		}
+		if db.First(&model.Product{}, pid).Error != nil {
+			c.JSON(http.StatusNotFound, gin.H{"message": "商品不存在"})
+			return
+		}
+		sku := model.ProductSku{ProductID: pid, Specs: strings.TrimSpace(req.Specs), Price: req.Price, Stock: req.Stock}
+		if err := db.Create(&sku).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "创建失败"})
+			return
+		}
+		c.JSON(http.StatusOK, sku)
+	}
+}
+
+// adminDeleteSku 删除商品规格。
+func adminDeleteSku(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "非法规格 ID"})
+			return
+		}
+		if !dbRequired(c, db) {
+			return
+		}
+		res := db.Delete(&model.ProductSku{}, id)
+		if res.Error != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "删除失败"})
+			return
+		}
+		if res.RowsAffected == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"message": "规格不存在"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
+	}
+}
+
 func adminGetUserRoles(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id, err := strconv.Atoi(c.Param("id"))
@@ -1071,8 +1127,7 @@ func adminGetUserRoles(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "非法用户 ID"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		if err := db.First(&model.User{}, id).Error; err != nil {
@@ -1099,8 +1154,7 @@ func adminSetUserRoles(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "请求格式错误"})
 			return
 		}
-		if db == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"message": "数据库不可用"})
+		if !dbRequired(c, db) {
 			return
 		}
 		if err := db.First(&model.User{}, id).Error; err != nil {

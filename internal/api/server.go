@@ -4,6 +4,8 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -18,7 +20,10 @@ func Start() {
 	databaseReady := err == nil
 	if err != nil {
 		log.Printf("mysql unavailable, serving catalog fallback: %v", err)
-	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}, &model.Coupon{}, &model.Role{}, &model.UserRole{}, &model.Permission{}, &model.RolePermission{}, &model.Review{}); migrateErr != nil {
+	} else if migrateErr := migratePricesToCents(db); migrateErr != nil {
+		log.Printf("data migration failed: %v", migrateErr)
+		databaseReady = false
+	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}, &model.Coupon{}, &model.Role{}, &model.UserRole{}, &model.Permission{}, &model.RolePermission{}, &model.Review{}, &model.UserCoupon{}, &model.CartItem{}, &model.ProductSku{}); migrateErr != nil {
 		log.Printf("mysql migration failed: %v", migrateErr)
 		databaseReady = false
 	} else {
@@ -113,8 +118,10 @@ func Start() {
 		payDisabled = "支付未配置"
 	}
 	router.GET("/api/notifications/stream", tokenFromQuery(), jwtMiddleware.MiddlewareFunc(), streamNotifications(hub))
-	router.POST("/api/login", jwtMiddleware.LoginHandler)
-	router.POST("/api/register", registerHandler(db))
+	loginLimiter := newRateLimiter(time.Minute, 10)
+	registerLimiter := newRateLimiter(time.Minute, 10)
+	router.POST("/api/login", rateLimitMiddleware(loginLimiter), jwtMiddleware.LoginHandler)
+	router.POST("/api/register", rateLimitMiddleware(registerLimiter), registerHandler(db))
 	router.POST("/api/pay/alipay/notify", handleAlipayNotify(db, payer))
 
 	protected := router.Group("/api")
@@ -135,6 +142,10 @@ func Start() {
 	protected.POST("/orders/:id/reviews", submitOrderReviews(db))
 	protected.PUT("/orders/:id/status", updateOrderStatus(db, hub))
 	protected.GET("/coupons", listCoupons(db, databaseReady))
+	protected.GET("/coupons/mine", listMyCoupons(db))
+	protected.POST("/coupons/:id/claim", claimCoupon(db))
+	protected.GET("/cart", getCart(db))
+	protected.PUT("/cart", putCart(db))
 	protected.GET("/notifications", listNotifications(db))
 	protected.GET("/notifications/unread", unreadCount(db))
 	protected.PUT("/notifications/read-all", markAllNotificationsRead(db))
@@ -147,6 +158,7 @@ func Start() {
 	// 用户
 	admin.GET("/users", requirePermission(db, "user:manage"), adminListUsers(db))
 	admin.PUT("/users/:id/status", requirePermission(db, "user:manage"), adminUpdateUserStatus(db))
+	admin.PUT("/users/:id/password", requirePermission(db, "user:manage"), adminResetPassword(db))
 	// 角色
 	admin.GET("/roles", requirePermission(db, "user:manage"), adminListRoles(db))
 	admin.POST("/roles", requirePermission(db, "user:manage"), adminCreateRole(db))
@@ -166,6 +178,8 @@ func Start() {
 	admin.PUT("/products/:id", requirePermission(db, "product:manage"), adminUpdateProduct(db))
 	admin.DELETE("/products/:id", requirePermission(db, "product:manage"), adminDeleteProduct(db))
 	admin.PUT("/products/:id/featured", requirePermission(db, "product:manage"), adminToggleFeatured(db))
+	admin.POST("/products/:id/skus", requirePermission(db, "product:manage"), adminCreateSku(db))
+	admin.DELETE("/skus/:id", requirePermission(db, "product:manage"), adminDeleteSku(db))
 	// 分类
 	admin.GET("/categories", requirePermission(db, "category:manage"), adminListCategories(db))
 	admin.POST("/categories", requirePermission(db, "category:manage"), adminCreateCategory(db))
@@ -191,7 +205,9 @@ func Start() {
 	router.GET("/api/products/:id/reviews", listProductReviews(db))
 	router.GET("/api/products", productsHandler(db, databaseReady))
 
-	go startSimulators(db, hub)
+	if simulatorsEnabled() {
+		go startSimulators(db, hub)
+	}
 
 	port := os.Getenv("API_PORT")
 	if port == "" {
@@ -206,9 +222,38 @@ func Start() {
 	}
 }
 
+// corsAllowed 判断来源是否允许跨域访问：空来源（非浏览器）、本地来源始终允许，
+// 其余需命中 CORS_ALLOWED_ORIGINS 白名单（逗号分隔）。
+func corsAllowed(origin, extra string) bool {
+	if origin == "" {
+		return true
+	}
+	if strings.HasPrefix(origin, "http://localhost") || strings.HasPrefix(origin, "http://127.0.0.1") {
+		return true
+	}
+	for _, a := range strings.Split(extra, ",") {
+		if a = strings.TrimSpace(a); a != "" && origin == a {
+			return true
+		}
+	}
+	return false
+}
+
 func corsMiddleware() gin.HandlerFunc {
+	extra := os.Getenv("CORS_ALLOWED_ORIGINS")
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		origin := c.GetHeader("Origin")
+		if !corsAllowed(origin, extra) {
+			if c.Request.Method == "OPTIONS" {
+				c.AbortWithStatus(403)
+				return
+			}
+			c.Next()
+			return
+		}
+		if origin != "" {
+			c.Header("Access-Control-Allow-Origin", origin)
+		}
 		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		if c.Request.Method == "OPTIONS" {

@@ -36,7 +36,24 @@ func productDetailHandler(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"message": "product not found"})
 			return
 		}
+		db.Where("product_id = ?", id).Find(&item.Skus)
 		c.JSON(http.StatusOK, item)
+	}
+}
+
+// productSortOrder 根据 sort 参数返回排序子句。
+func productSortOrder(sort string) string {
+	switch sort {
+	case "price_asc":
+		return "price ASC"
+	case "price_desc":
+		return "price DESC"
+	case "sales_desc":
+		return "sales DESC"
+	case "rating_desc":
+		return "rating DESC"
+	default:
+		return "id DESC"
 	}
 }
 
@@ -55,17 +72,17 @@ func productsHandler(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
 			query = query.Where("featured = ?", true)
 		}
 		if search != "" {
-			query = query.Where("name LIKE ?", "%"+search+"%")
+			query = query.Where("name LIKE ? OR description LIKE ?", "%"+search+"%", "%"+search+"%")
 		}
 		if category != "" && category != "all" {
 			query = query.Where("category = ?", category)
 		}
-		var items []model.Product
-		order := "id DESC"
+		sort := c.Query("sort")
 		if featured {
-			order = "sales DESC"
+			sort = "sales_desc"
 		}
-		if err := query.Order(order).Find(&items).Error; err != nil {
+		var items []model.Product
+		if err := query.Order(productSortOrder(sort)).Find(&items).Error; err != nil {
 			items = nil
 		}
 		if len(items) == 0 && !hasFilter {

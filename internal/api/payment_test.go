@@ -30,7 +30,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.Order{}, &model.Notification{}); err != nil {
+	if err := db.AutoMigrate(&model.Order{}, &model.Notification{}, &model.Product{}, &model.UserCoupon{}, &model.Coupon{}, &model.CartItem{}, &model.Review{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return db
@@ -38,7 +38,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 
 func TestMarkPaid(t *testing.T) {
 	db := newTestDB(t)
-	order := model.Order{OrderNo: "O1", UserID: "u1", Status: model.OrderStatusPending, Amount: 19.9}
+	order := model.Order{OrderNo: "O1", UserID: "u1", Status: model.OrderStatusPending, Amount: 1990}
 	if err := db.Create(&order).Error; err != nil {
 		t.Fatalf("create order: %v", err)
 	}
@@ -86,6 +86,115 @@ func TestMarkPaidIdempotent(t *testing.T) {
 	}
 }
 
+func TestMarkPaidDeductsStock(t *testing.T) {
+	db := newTestDB(t)
+	p := model.Product{Name: "A", Price: 1000, Stock: 5}
+	db.Create(&p)
+	order := model.Order{
+		OrderNo: "O-STOCK", UserID: "u1", Status: model.OrderStatusPending, Amount: 1000,
+		Items: []model.OrderItem{{ProductID: p.ID, Name: "A", Price: 1000, Quantity: 2}},
+	}
+	db.Create(&order)
+
+	if err := markPaid(db, order.ID, "trade-stock"); err != nil {
+		t.Fatalf("markPaid: %v", err)
+	}
+	var got model.Product
+	db.First(&got, p.ID)
+	if got.Stock != 3 {
+		t.Fatalf("stock = %d, want 3", got.Stock)
+	}
+	var o model.Order
+	db.First(&o, order.ID)
+	if o.Status != model.OrderStatusPaid {
+		t.Fatalf("status = %q, want paid", o.Status)
+	}
+}
+
+func TestMarkPaidRedeemsCoupon(t *testing.T) {
+	db := newTestDB(t)
+	coupon := model.Coupon{Title: "券", Amount: 1000, MinAmount: 0}
+	db.Create(&coupon)
+	uc := model.UserCoupon{UserID: "u1", CouponID: coupon.ID, Status: model.UserCouponStatusUnused}
+	db.Create(&uc)
+	order := model.Order{OrderNo: "O-CP", UserID: "u1", Status: model.OrderStatusPending, Amount: 1000, UserCouponID: uc.ID}
+	db.Create(&order)
+
+	if err := markPaid(db, order.ID, "trade-cp"); err != nil {
+		t.Fatalf("markPaid: %v", err)
+	}
+	var got model.UserCoupon
+	db.First(&got, uc.ID)
+	if got.Status != model.UserCouponStatusUsed {
+		t.Fatalf("status = %q, want used", got.Status)
+	}
+	if got.UsedOrderNo != "O-CP" {
+		t.Fatalf("usedOrderNo = %q, want O-CP", got.UsedOrderNo)
+	}
+}
+
+func TestMarkPaidCouponAlreadyUsed(t *testing.T) {
+	db := newTestDB(t)
+	coupon := model.Coupon{Title: "券", Amount: 1000, MinAmount: 0}
+	db.Create(&coupon)
+	uc := model.UserCoupon{UserID: "u1", CouponID: coupon.ID, Status: model.UserCouponStatusUsed}
+	db.Create(&uc)
+	order := model.Order{OrderNo: "O-CP2", UserID: "u1", Status: model.OrderStatusPending, Amount: 1000, UserCouponID: uc.ID}
+	db.Create(&order)
+
+	if err := markPaid(db, order.ID, "trade-cp2"); err != nil {
+		t.Fatalf("markPaid: %v", err)
+	}
+	var o model.Order
+	db.First(&o, order.ID)
+	if o.Status != model.OrderStatusAftersale {
+		t.Fatalf("status = %q, want aftersale", o.Status)
+	}
+}
+
+func TestMarkPaidIncrementsSales(t *testing.T) {
+	db := newTestDB(t)
+	p := model.Product{Name: "A", Price: 1000, Stock: 5, Sales: 10}
+	db.Create(&p)
+	order := model.Order{OrderNo: "O-SALES", UserID: "u1", Status: model.OrderStatusPending, Amount: 1000,
+		Items: []model.OrderItem{{ProductID: p.ID, Name: "A", Price: 1000, Quantity: 2}}}
+	db.Create(&order)
+
+	if err := markPaid(db, order.ID, "trade-sales"); err != nil {
+		t.Fatalf("markPaid: %v", err)
+	}
+	var got model.Product
+	db.First(&got, p.ID)
+	if got.Sales != 12 {
+		t.Fatalf("sales = %d, want 12", got.Sales)
+	}
+}
+
+func TestMarkPaidOutOfStock(t *testing.T) {
+	db := newTestDB(t)
+	p := model.Product{Name: "A", Price: 1000, Stock: 1}
+	db.Create(&p)
+	order := model.Order{
+		OrderNo: "O-OOS", UserID: "u1", Status: model.OrderStatusPending, Amount: 2000,
+		Items: []model.OrderItem{{ProductID: p.ID, Name: "A", Price: 1000, Quantity: 2}},
+	}
+	db.Create(&order)
+
+	if err := markPaid(db, order.ID, "trade-oos"); err != nil {
+		t.Fatalf("markPaid: %v", err)
+	}
+	var got model.Product
+	db.First(&got, p.ID)
+	if got.Stock != 1 {
+		t.Fatalf("stock = %d, want 1 (unchanged)", got.Stock)
+	}
+	var o model.Order
+	db.First(&o, order.ID)
+	if o.Status != model.OrderStatusAftersale {
+		t.Fatalf("status = %q, want aftersale", o.Status)
+	}
+}
+
 // TestMarkPaidConcurrent 用文件库 + WAL 验证并发 markPaid 只落一次库，不互相覆盖。
 func TestMarkPaidConcurrent(t *testing.T) {
 	dir := t.TempDir()
@@ -101,7 +210,7 @@ func TestMarkPaidConcurrent(t *testing.T) {
 	if err := db.AutoMigrate(&model.Order{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	order := model.Order{OrderNo: "OCONC", UserID: "u1", Status: model.OrderStatusPending, Amount: 1.0}
+	order := model.Order{OrderNo: "OCONC", UserID: "u1", Status: model.OrderStatusPending, Amount: 100}
 	if err := db.Create(&order).Error; err != nil {
 		t.Fatalf("create order: %v", err)
 	}
@@ -219,7 +328,7 @@ func payOrderCtx(t *testing.T, id uint) (*gin.Context, *httptest.ResponseRecorde
 
 func TestPayOrderPrecreateSuccess(t *testing.T) {
 	db := newTestDB(t)
-	order := model.Order{OrderNo: "O100", UserID: "", Status: model.OrderStatusPending, Amount: 0.1 + 0.2}
+	order := model.Order{OrderNo: "O100", UserID: "", Status: model.OrderStatusPending, Amount: 30}
 	db.Create(&order)
 
 	var gotTotal string
@@ -467,7 +576,7 @@ func notifyCtx(t *testing.T) (*gin.Context, *httptest.ResponseRecorder) {
 
 func TestNotifyMarksPaid(t *testing.T) {
 	db := newTestDB(t)
-	order := model.Order{OrderNo: "O300", UserID: "u1", Status: model.OrderStatusPending, Amount: 19.9}
+	order := model.Order{OrderNo: "O300", UserID: "u1", Status: model.OrderStatusPending, Amount: 1990}
 	db.Create(&order)
 	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, string, error) {
 		return "TRADE_SUCCESS", "trade-300", "O300", "19.90", nil
@@ -551,7 +660,7 @@ func TestPayOrderStatusMarkPaidError(t *testing.T) {
 
 func TestNotifyMarkPaidError(t *testing.T) {
 	db := newTestDB(t)
-	order := model.Order{OrderNo: "O303", UserID: "u1", Status: model.OrderStatusPending, Amount: 19.9}
+	order := model.Order{OrderNo: "O303", UserID: "u1", Status: model.OrderStatusPending, Amount: 1990}
 	db.Create(&order)
 	makeReadOnly(t, db)
 	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, string, error) {
@@ -567,7 +676,7 @@ func TestNotifyMarkPaidError(t *testing.T) {
 
 func TestNotifyAmountMismatch(t *testing.T) {
 	db := newTestDB(t)
-	order := model.Order{OrderNo: "O304", UserID: "u1", Status: model.OrderStatusPending, Amount: 19.9}
+	order := model.Order{OrderNo: "O304", UserID: "u1", Status: model.OrderStatusPending, Amount: 1990}
 	db.Create(&order)
 	payer := &mockPayer{decode: func(ctx context.Context, v url.Values) (string, string, string, string, error) {
 		return "TRADE_SUCCESS", "trade-304", "O304", "9.90", nil
