@@ -32,7 +32,7 @@ type OrderItem struct {
 // Order 是用户的订单。
 type Order struct {
 	ID           uint           `json:"id" gorm:"primaryKey"`
-	OrderNo      string         `json:"orderNo" gorm:"uniqueIndex"`
+	OrderNo      string         `json:"orderNo" gorm:"size:64;uniqueIndex"`
 	UserID       string         `json:"userId" gorm:"index;size:64"`
 	Status       string         `json:"status" gorm:"size:20"`
 	Amount       Price          `json:"amount"`
