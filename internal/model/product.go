@@ -30,10 +30,10 @@ type Product struct {
 
 // FallbackProducts 是数据库不可用或为空时兜底的商品目录。
 var FallbackProducts = []Product{
-	{ID: 1, Name: "Wireless Headphones", Description: "Noise canceling and long battery life", Price: 19900, OriginalPrice: 29900, Sales: 2341, Stock: 100, Emoji: "headphones", Color: "#e8efff", Category: "Digital"},
-	{ID: 2, Name: "Cloud Thermos", Description: "Lightweight 316L stainless steel", Price: 8900, OriginalPrice: 12900, Sales: 1820, Stock: 100, Emoji: "thermos", Color: "#fff0e6", Category: "Home"},
-	{ID: 3, Name: "Knit Cardigan", Description: "Soft and versatile for spring", Price: 15900, OriginalPrice: 23900, Sales: 968, Stock: 100, Emoji: "cardigan", Color: "#f7eaff", Category: "Fashion"},
-	{ID: 4, Name: "Brightening Serum", Description: "Hydrating and luminous skin care", Price: 22900, OriginalPrice: 32900, Sales: 1536, Stock: 100, Emoji: "serum", Color: "#fff5d9", Category: "Beauty"},
-	{ID: 5, Name: "Nut Gift Box", Description: "Selected nuts for everyday nutrition", Price: 6900, OriginalPrice: 9900, Sales: 3204, Stock: 100, Emoji: "nuts", Color: "#e7f7ec", Category: "Food"},
-	{ID: 6, Name: "Desk Night Light", Description: "Three brightness levels", Price: 7900, OriginalPrice: 11900, Sales: 741, Stock: 100, Emoji: "lamp", Color: "#e7f4ff", Category: "Home"},
+	{ID: 1, Name: "Wireless Headphones", Description: "Noise canceling and long battery life", Price: 19900, OriginalPrice: 29900, Sales: 2341, Stock: 100, Emoji: "🎧", Color: "#e8efff", Category: "Digital"},
+	{ID: 2, Name: "Cloud Thermos", Description: "Lightweight 316L stainless steel", Price: 8900, OriginalPrice: 12900, Sales: 1820, Stock: 100, Emoji: "🥤", Color: "#fff0e6", Category: "Home"},
+	{ID: 3, Name: "Knit Cardigan", Description: "Soft and versatile for spring", Price: 15900, OriginalPrice: 23900, Sales: 968, Stock: 100, Emoji: "🧶", Color: "#f7eaff", Category: "Fashion"},
+	{ID: 4, Name: "Brightening Serum", Description: "Hydrating and luminous skin care", Price: 22900, OriginalPrice: 32900, Sales: 1536, Stock: 100, Emoji: "🧴", Color: "#fff5d9", Category: "Beauty"},
+	{ID: 5, Name: "Nut Gift Box", Description: "Selected nuts for everyday nutrition", Price: 6900, OriginalPrice: 9900, Sales: 3204, Stock: 100, Emoji: "🥜", Color: "#e7f7ec", Category: "Food"},
+	{ID: 6, Name: "Desk Night Light", Description: "Three brightness levels", Price: 7900, OriginalPrice: 11900, Sales: 741, Stock: 100, Emoji: "💡", Color: "#e7f4ff", Category: "Home"},
 }
