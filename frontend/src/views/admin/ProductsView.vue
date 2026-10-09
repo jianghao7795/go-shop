@@ -39,6 +39,14 @@ const loading = ref(false);
 const saving = ref(false);
 const showForm = ref(false);
 const showCategoryPicker = ref(false);
+const showEmojiPicker = ref(false);
+const EMOJIS = [
+  "🎧", "📱", "💻", "⌚", "📷", "🎮", "⌨️", "🖱️", "🔋", "🔌",
+  "👕", "👗", "🧥", "🧢", "👟", "🧶", "👜", "👓", "🧣", "🧤",
+  "💄", "🧴", "🧼", "💅", "🪞", "💍",
+  "🍎", "🍊", "🍇", "🥕", "🍞", "🍫", "☕", "🍵", "🥜", "🧃",
+  "🏠", "🛋️", "🪑", "🖼️", "💡", "🕯️", "🧸", "🎁", "📚", "✏️", "🌂",
+];
 const editingId = ref<number | null>(null);
 const detailEditor = ref<{ getHtml: () => string }>();
 const skus = ref<any[]>([]);
@@ -269,6 +277,11 @@ function onCategoryConfirm({ selectedOptions }: { selectedOptions: any[] }) {
   showCategoryPicker.value = false;
 }
 
+function pickEmoji(e: string) {
+  form.emoji = e;
+  showEmojiPicker.value = false;
+}
+
 onMounted(() => {
   load();
   loadCategories();
@@ -347,7 +360,7 @@ onMounted(() => {
         <van-field v-model="form.price" label="价格" type="number" placeholder="0.00" />
         <van-field v-model="form.originalPrice" label="原价" type="number" placeholder="0.00" />
         <van-field v-model="form.stock" label="库存" type="number" placeholder="库存数量" />
-        <van-field v-model="form.emoji" label="Emoji" placeholder="如 🍎" />
+        <van-field :model-value="form.emoji" readonly is-link label="Emoji" placeholder="选择或输入图标" @click="showEmojiPicker = true" />
         <van-field v-model="form.color" label="颜色" placeholder="如 #ff6b6b" />
         <van-field
           :model-value="categoryLabel"
@@ -390,6 +403,22 @@ onMounted(() => {
         @cancel="showCategoryPicker = false"
       />
     </van-popup>
+
+    <van-popup v-model:show="showEmojiPicker" position="bottom" round>
+      <div class="emoji-picker">
+        <h4>选择图标</h4>
+        <div class="emoji-grid">
+          <span
+            v-for="e in EMOJIS"
+            :key="e"
+            class="emoji-item"
+            :class="{ active: form.emoji === e }"
+            @click="pickEmoji(e)"
+          >{{ e }}</span>
+        </div>
+        <van-field v-model="form.emoji" label="自定义" placeholder="直接输入 emoji 或字符" />
+      </div>
+    </van-popup>
   </div>
 </template>
 
@@ -398,5 +427,10 @@ onMounted(() => {
 .sku-editor-title { font-size: 13px; color: #646a73; margin-bottom: 6px; }
 .sku-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; padding: 4px 0; }
 .sku-add { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e5e6eb; }
+.emoji-picker { padding: 12px 16px; max-height: 60vh; overflow-y: auto; }
+.emoji-picker h4 { margin: 0 0 10px; font-size: 14px; }
+.emoji-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.emoji-item { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 22px; background: #f5f6f8; border-radius: 8px; cursor: pointer; }
+.emoji-item.active { background: #ffecef; outline: 2px solid #ee0a24; }
 </style>
 
