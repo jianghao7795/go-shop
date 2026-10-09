@@ -27,7 +27,7 @@ func listProductReviews(db *gorm.DB) gin.HandlerFunc {
 		db.Model(&model.Review{}).Where("product_id = ?", pid).Select("COALESCE(AVG(rating), 0)").Scan(&avg)
 		page, pageSize := parsePagination(c)
 		var reviews []model.Review
-		db.Where("product_id = ?", pid).Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&reviews)
+		db.Model(&model.Review{}).Where("product_id = ?", pid).Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&reviews)
 		c.JSON(http.StatusOK, gin.H{"reviews": reviews, "average": avg, "count": total, "page": page, "pageSize": pageSize})
 	}
 }
