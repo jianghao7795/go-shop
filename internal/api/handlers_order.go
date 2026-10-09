@@ -210,7 +210,7 @@ func listOrders(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		page, pageSize := parsePagination(c)
-		query := db.Where("user_id = ?", currentUser(c))
+		query := db.Model(&model.Order{}).Where("user_id = ?", currentUser(c))
 		if status := c.Query("status"); status != "" {
 			query = query.Where("status = ?", status)
 		}
