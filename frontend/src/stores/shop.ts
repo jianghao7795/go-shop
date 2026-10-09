@@ -92,14 +92,16 @@ export const useShopCart = defineStore("shopCart", () => {
     } catch { /* 忽略 */ }
   }
 
-  function add(product: ShopProduct, skuId = 0, specs = "") {
+  function add(product: ShopProduct, skuId = 0, specs = "", price?: number) {
     const key = cartKey(product.id, skuId);
+    // 有规格时用规格价覆盖商品默认价，保证购物车/结算显示的价格与规格一致。
+    const p = skuId > 0 && price !== undefined ? { ...product, price } : product;
     const line = items.value[key];
     if (line) {
       line.quantity += 1;
       line.checked = true;
     } else {
-      items.value[key] = { product, skuId, specs, quantity: 1, checked: true };
+      items.value[key] = { product: p, skuId, specs, quantity: 1, checked: true };
     }
     persist();
     showToast("已加入购物车");

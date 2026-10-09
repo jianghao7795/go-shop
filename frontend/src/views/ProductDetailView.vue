@@ -42,7 +42,8 @@ async function loadProduct() {
 function addToCart() {
   if (!product.value) return;
   const sku = product.value.skus?.find((s) => s.id === selectedSkuId.value);
-  for (let i = 0; i < quantity.value; i += 1) add(product.value, selectedSkuId.value, sku?.specs || "");
+  const price = sku ? sku.price : product.value.price;
+  for (let i = 0; i < quantity.value; i += 1) add(product.value, selectedSkuId.value, sku?.specs || "", price);
   showToast("已加入购物车");
 }
 
