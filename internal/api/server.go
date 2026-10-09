@@ -222,13 +222,13 @@ func Start() {
 	}
 }
 
-// corsAllowed 判断来源是否允许跨域访问：空来源（非浏览器）、本地来源始终允许，
+// corsAllowed 判断来源是否允许跨域访问：空来源（非浏览器）、本机来源始终允许，
 // 其余需命中 CORS_ALLOWED_ORIGINS 白名单（逗号分隔）。
 func corsAllowed(origin, extra string) bool {
 	if origin == "" {
 		return true
 	}
-	if strings.HasPrefix(origin, "http://localhost") || strings.HasPrefix(origin, "http://127.0.0.1") {
+	if isLocalOrigin(origin) {
 		return true
 	}
 	for _, a := range strings.Split(extra, ",") {
@@ -237,6 +237,18 @@ func corsAllowed(origin, extra string) bool {
 		}
 	}
 	return false
+}
+
+// isLocalOrigin 判断 origin 是否指向本机：localhost、*.localhost 子域（如 wails.localhost）、127.0.0.1。
+func isLocalOrigin(origin string) bool {
+	host := origin
+	if i := strings.Index(origin, "://"); i >= 0 {
+		host = origin[i+3:]
+	}
+	if i := strings.IndexByte(host, ':'); i >= 0 {
+		host = host[:i]
+	}
+	return host == "localhost" || strings.HasSuffix(host, ".localhost") || host == "127.0.0.1"
 }
 
 func corsMiddleware() gin.HandlerFunc {
