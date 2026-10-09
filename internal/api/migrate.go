@@ -24,7 +24,10 @@ func migratePricesToCents(db *gorm.DB) error {
 	}
 	const key = "prices-to-cents-v1"
 	var n int64
-	db.Model(&migrationRecord{}).Where("key = ?", key).Count(&n)
+	// `key` 是 MySQL 保留字，必须用反引号，否则 SQL 语法错误、错误被忽略会导致幂等检查失效、重复迁移。
+	if err := db.Model(&migrationRecord{}).Where("`key` = ?", key).Count(&n).Error; err != nil {
+		return err
+	}
 	if n > 0 {
 		return nil // 已迁移
 	}
