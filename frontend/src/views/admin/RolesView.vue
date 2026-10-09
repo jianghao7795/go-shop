@@ -137,18 +137,19 @@ onMounted(() => {
 
     <table v-else class="admin-table">
       <thead>
-        <tr><th>名称</th><th>描述</th><th>权限</th><th>操作</th></tr>
+        <tr>
+          <th>名称</th>
+          <th>描述</th>
+          <th>权限</th>
+          <th>操作</th>
+        </tr>
       </thead>
       <tbody>
         <tr v-for="r in list" :key="r.id">
           <td>{{ r.name }}</td>
           <td>{{ r.description || "-" }}</td>
-          <td>
-            <span
-              v-for="id in r.permissionIds"
-              :key="id"
-              class="perm-tag"
-            >{{ permName(id) }}</span>
+          <td style="white-space: break-spaces">
+            <span v-for="id in r.permissionIds" :key="id" class="perm-tag">{{ permName(id) }}</span>
             <span v-if="!r.permissionIds || r.permissionIds.length === 0">-</span>
           </td>
           <td class="admin-ops">
@@ -163,23 +164,11 @@ onMounted(() => {
       <div class="form-popup">
         <h3>{{ editingId ? "编辑角色" : "新建角色" }}</h3>
         <van-field v-model="form.name" label="名称" placeholder="角色名称" />
-        <van-field
-          v-model="form.description"
-          label="描述"
-          type="textarea"
-          rows="2"
-          autosize
-          placeholder="角色描述"
-        />
+        <van-field v-model="form.description" label="描述" type="textarea" rows="2" autosize placeholder="角色描述" />
         <van-field label="权限">
           <template #input>
             <div class="perm-checks">
-              <van-checkbox
-                v-for="p in permissions"
-                :key="p.id"
-                :model-value="form.permissionIds.includes(p.id)"
-                @click="togglePerm(p.id)"
-              >{{ p.name }}</van-checkbox>
+              <van-checkbox v-for="p in permissions" :key="p.id" :model-value="form.permissionIds.includes(p.id)" @click="togglePerm(p.id)">{{ p.name }}</van-checkbox>
             </div>
           </template>
         </van-field>
