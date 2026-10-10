@@ -2,7 +2,6 @@ package api
 
 import (
 	"crypto/rand"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"shop/internal/logx"
 	"shop/internal/model"
 )
 
@@ -311,7 +311,7 @@ func payOrder(db *gorm.DB, payer alipayPayer, payDisabled string) gin.HandlerFun
 		qrCode, err := payer.PreCreate(c.Request.Context(), order.OrderNo,
 			order.Amount.YuanString(), "订单 "+order.OrderNo)
 		if err != nil {
-			log.Printf("alipay precreate failed: order %s: %v", order.OrderNo, err)
+			logx.L().Errorf("alipay precreate failed: order %s: %v", order.OrderNo, err)
 			c.JSON(http.StatusBadGateway, gin.H{"message": "支付下单失败，请稍后重试"})
 			return
 		}
@@ -351,7 +351,7 @@ func payOrderStatus(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
 		}
 		status, tradeNo, err := payer.Query(c.Request.Context(), order.OrderNo)
 		if err != nil {
-			log.Printf("alipay query failed: order %s: %v", order.OrderNo, err)
+			logx.L().Errorf("alipay query failed: order %s: %v", order.OrderNo, err)
 			c.JSON(http.StatusBadGateway, gin.H{"message": "支付状态查询失败，请稍后重试"})
 			return
 		}

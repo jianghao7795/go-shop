@@ -3,7 +3,6 @@ package auth
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
+	"shop/internal/logx"
 	"shop/internal/model"
 )
 
@@ -56,7 +56,7 @@ func resolveJWTSecret(configured string) string {
 func New(db *gorm.DB) (*jwt.GinJWTMiddleware, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		log.Println("JWT_SECRET 未设置，已生成临时随机密钥（重启后已登录用户需重新登录）")
+		logx.L().Warnf("JWT_SECRET 未设置，已生成临时随机密钥（重启后已登录用户需重新登录）")
 	}
 	return jwt.New(&jwt.GinJWTMiddleware{
 		Realm:       "shop",

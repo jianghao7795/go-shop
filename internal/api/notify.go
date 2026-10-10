@@ -1,11 +1,11 @@
 package api
 
 import (
-	"log"
 	"sync"
 
 	"gorm.io/gorm"
 
+	"shop/internal/logx"
 	"shop/internal/model"
 )
 
@@ -85,7 +85,7 @@ func notify(db *gorm.DB, hub *notificationHub, userID, typ, title, content, orde
 	}
 	if db != nil {
 		if err := db.Create(&n).Error; err != nil {
-			log.Printf("notification create failed: %v", err)
+			logx.L().Errorf("notification create failed: %v", err)
 		}
 	}
 	hub.broadcast(userID, n)

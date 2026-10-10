@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +15,7 @@ import (
 	"github.com/smartwalle/alipay/v3"
 	"gorm.io/gorm"
 
+	"shop/internal/logx"
 	"shop/internal/model"
 )
 
@@ -94,7 +94,7 @@ func markPaid(db *gorm.DB, orderID uint, tradeNo string) error {
 					Update("stock", gorm.Expr("stock + ?", d.Quantity))
 			}
 		}
-		log.Printf("order %s paid but stock/coupon unavailable", order.OrderNo)
+		logx.L().Warnf("order %s paid but stock/coupon unavailable", order.OrderNo)
 		return db.Model(&model.Order{}).Where("id = ?", orderID).
 			Update("status", model.OrderStatusAftersale).Error
 	}
@@ -276,7 +276,7 @@ func handleAlipayNotify(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
 			var order model.Order
 			if db.Where("order_no = ?", outTradeNo).First(&order).Error == nil {
 				if totalAmount != "" && totalAmount != order.Amount.YuanString() {
-					log.Printf("alipay notify amount mismatch: order %s notify %s want %s", order.OrderNo, totalAmount, order.Amount.YuanString())
+					logx.L().Errorf("alipay notify amount mismatch: order %s notify %s want %s", order.OrderNo, totalAmount, order.Amount.YuanString())
 					c.String(http.StatusOK, "success")
 					return
 				}

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -11,47 +10,51 @@ import (
 
 	"shop/internal/auth"
 	"shop/internal/database"
+	"shop/internal/logx"
 	"shop/internal/model"
 )
 
 // Start 启动 Gin API 服务器，监听 :8080（可用 API_PORT 覆盖）。
 func Start() {
+	if err := logx.Init(); err != nil {
+		logx.L().Errorf("日志初始化失败，使用默认配置: %v", err)
+	}
 	db, err := database.Open()
 	databaseReady := err == nil
 	if err != nil {
-		log.Printf("mysql unavailable, serving catalog fallback: %v", err)
+		logx.L().Errorf("mysql unavailable, serving catalog fallback: %v", err)
 	} else if migrateErr := migratePricesToCents(db); migrateErr != nil {
-		log.Printf("data migration failed: %v", migrateErr)
+		logx.L().Errorf("data migration failed: %v", migrateErr)
 		databaseReady = false
 	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}, &model.Coupon{}, &model.Role{}, &model.UserRole{}, &model.Permission{}, &model.RolePermission{}, &model.Review{}, &model.UserCoupon{}, &model.CartItem{}, &model.ProductSku{}); migrateErr != nil {
-		log.Printf("mysql migration failed: %v", migrateErr)
+		logx.L().Errorf("mysql migration failed: %v", migrateErr)
 		databaseReady = false
 	} else {
 		var count int64
 		db.Model(&model.Product{}).Count(&count)
 		if count == 0 {
 			if seedErr := db.Create(&model.FallbackProducts).Error; seedErr != nil {
-				log.Printf("product seed failed: %v", seedErr)
+				logx.L().Errorf("product seed failed: %v", seedErr)
 			} else {
-				log.Printf("seeded %d products", len(model.FallbackProducts))
+				logx.L().Infof("seeded %d products", len(model.FallbackProducts))
 			}
 		}
 		var catCount int64
 		db.Model(&model.Category{}).Count(&catCount)
 		if catCount == 0 {
 			if seedErr := db.Create(&model.Categories).Error; seedErr != nil {
-				log.Printf("category seed failed: %v", seedErr)
+				logx.L().Errorf("category seed failed: %v", seedErr)
 			} else {
-				log.Printf("seeded %d categories", len(model.Categories))
+				logx.L().Infof("seeded %d categories", len(model.Categories))
 			}
 		}
 		var couponCount int64
 		db.Model(&model.Coupon{}).Count(&couponCount)
 		if couponCount == 0 {
 			if seedErr := db.Create(&model.Coupons).Error; seedErr != nil {
-				log.Printf("coupon seed failed: %v", seedErr)
+				logx.L().Errorf("coupon seed failed: %v", seedErr)
 			} else {
-				log.Printf("seeded %d coupons", len(model.Coupons))
+				logx.L().Infof("seeded %d coupons", len(model.Coupons))
 			}
 		}
 		// 补齐历史优惠券的有效期（新增 start_at/end_at 字段后，旧数据可能为空）
@@ -99,19 +102,19 @@ func Start() {
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
-	router.Use(gin.Recovery(), corsMiddleware())
+	router.Use(gin.Recovery(), RequestLogger(), corsMiddleware())
 	uploads := router.Group("/uploads", noSniffMiddleware())
 	uploads.Static("/", "./uploads")
 
 	jwtMiddleware, err := auth.New(db)
 	if err != nil {
-		log.Fatalf("auth init failed: %v", err)
+		logx.L().Fatalf("auth init failed: %v", err)
 	}
 	hub := newNotificationHub()
 	payer, err := newAlipayPayer()
 	payDisabled := ""
 	if err != nil {
-		log.Printf("alipay init failed (payment disabled): %v", err)
+		logx.L().Warnf("alipay init failed (payment disabled): %v", err)
 		payDisabled = "支付配置错误，请联系管理员"
 		payer = nil
 	} else if payer == nil {
@@ -216,9 +219,9 @@ func Start() {
 	if _, err := strconv.Atoi(port); err != nil {
 		port = "8080"
 	}
-	log.Printf("Gin API listening on :%s", port)
+	logx.L().Infof("Gin API listening on :%s", port)
 	if err := router.Run(":" + port); err != nil {
-		log.Printf("Gin server stopped: %v", err)
+		logx.L().Errorf("Gin server stopped: %v", err)
 	}
 }
 

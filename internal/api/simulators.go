@@ -1,12 +1,12 @@
 package api
 
 import (
-	"log"
 	"os"
 	"time"
 
 	"gorm.io/gorm"
 
+	"shop/internal/logx"
 	"shop/internal/model"
 )
 
@@ -47,7 +47,7 @@ func shipNextOrder(db *gorm.DB, hub *notificationHub) {
 	db.Model(&model.Order{}).Where("id = ?", order.ID).Update("status", model.OrderStatusShipped)
 	notify(db, hub, order.UserID, model.NotificationTypeOrder, "订单已发货",
 		"您的订单 "+order.OrderNo+" 已发货，请注意查收", order.OrderNo)
-	log.Printf("simulated merchant shipped order %s", order.OrderNo)
+	logx.L().Infof("simulated merchant shipped order %s", order.OrderNo)
 }
 
 func pushCouponToOnline(db *gorm.DB, hub *notificationHub, cp model.Coupon) {

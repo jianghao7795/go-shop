@@ -2,12 +2,12 @@ package main
 
 import (
 	"embed"
-	"log"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"shop/internal/api"
+	"shop/internal/logx"
 	"shop/service"
 )
 
@@ -60,6 +60,6 @@ func main() {
 	}()
 
 	if err := app.Run(); err != nil {
-		log.Fatal(err)
+		logx.L().Fatalf("app run failed: %v", err)
 	}
 }
