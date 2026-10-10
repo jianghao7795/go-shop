@@ -12,8 +12,8 @@ import (
 var logger *zap.SugaredLogger
 
 // Init 初始化日志：按日期分目录 logs/YYYY-MM-DD/，按级别分文件
-// info.log（Info 及以上）、warning.log（Warn 及以上）、error.log（Error），
-// 同时输出到 stdout。
+// info.log（Info 及以上）、warning.log（Warn 及以上）、error.log（Error 及以上）、
+// fatal.log（Fatal），同时输出到 stdout。
 func Init() error {
 	dir := filepath.Join("logs", time.Now().Format("2006-01-02"))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -32,6 +32,10 @@ func Init() error {
 	if err != nil {
 		return err
 	}
+	fatalFile, err := openLogFile(filepath.Join(dir, "fatal.log"))
+	if err != nil {
+		return err
+	}
 
 	enc := consoleEncoder()
 
@@ -40,6 +44,7 @@ func Init() error {
 		zapcore.NewCore(enc, zapcore.AddSync(infoFile), zapcore.InfoLevel),
 		zapcore.NewCore(enc, zapcore.AddSync(warnFile), zapcore.WarnLevel),
 		zapcore.NewCore(enc, zapcore.AddSync(errFile), zapcore.ErrorLevel),
+		zapcore.NewCore(enc, zapcore.AddSync(fatalFile), zapcore.FatalLevel),
 	)
 
 	logger = zap.New(core, zap.AddCaller()).Sugar()
