@@ -82,3 +82,30 @@ func (c *Client) IncrWithTTL(ctx context.Context, key string, ttl time.Duration)
 	}
 	return incrWithTTLScript.Run(ctx, c.rdb, []string{key}, int(ttl.Seconds())).Int64()
 }
+
+// Get 读取 key 的值；key 不存在返回 redis.Nil，Redis 不可用返回 ErrUnavailable。
+func (c *Client) Get(ctx context.Context, key string) (string, error) {
+	if !c.available {
+		return "", ErrUnavailable
+	}
+	return c.rdb.Get(ctx, key).Result()
+}
+
+// Set 写入 key 的值并设置过期时间。
+func (c *Client) Set(ctx context.Context, key, value string, ttl time.Duration) error {
+	if !c.available {
+		return ErrUnavailable
+	}
+	if ttl < time.Second {
+		ttl = time.Second
+	}
+	return c.rdb.Set(ctx, key, value, ttl).Err()
+}
+
+// Incr 对 key 自增 1（无过期时间）。
+func (c *Client) Incr(ctx context.Context, key string) (int64, error) {
+	if !c.available {
+		return 0, ErrUnavailable
+	}
+	return c.rdb.Incr(ctx, key).Result()
+}

@@ -2,10 +2,12 @@ package redisx
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
 )
 
 func TestIncrWithTTL(t *testing.T) {
@@ -48,5 +50,47 @@ func TestNewUnavailable(t *testing.T) {
 	}
 	if _, err := client.IncrWithTTL(context.Background(), "k", time.Minute); err != ErrUnavailable {
 		t.Fatalf("IncrWithTTL when unavailable: got %v; want ErrUnavailable", err)
+	}
+}
+
+func TestGetSetIncr(t *testing.T) {
+	mr := miniredis.RunT(t)
+	client := New(Config{Addr: mr.Addr()})
+	ctx := context.Background()
+
+	// miss 返回 redis.Nil
+	if _, err := client.Get(ctx, "nope"); !errors.Is(err, redis.Nil) {
+		t.Fatalf("miss: got %v, want redis.Nil", err)
+	}
+	// set + get
+	if err := client.Set(ctx, "k", "v", time.Minute); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	if v, err := client.Get(ctx, "k"); err != nil || v != "v" {
+		t.Fatalf("get: got %q, %v; want v, nil", v, err)
+	}
+	if ttl := mr.TTL("k"); ttl <= 0 || ttl > time.Minute {
+		t.Fatalf("ttl: got %v; want >0 and <=1m", ttl)
+	}
+	// incr
+	if n, err := client.Incr(ctx, "c"); err != nil || n != 1 {
+		t.Fatalf("incr 1: got %d, %v; want 1, nil", n, err)
+	}
+	if n, _ := client.Incr(ctx, "c"); n != 2 {
+		t.Fatalf("incr 2: got %d; want 2", n)
+	}
+}
+
+func TestGetSetIncrUnavailable(t *testing.T) {
+	client := New(Config{Addr: "127.0.0.1:1"})
+	ctx := context.Background()
+	if _, err := client.Get(ctx, "k"); err != ErrUnavailable {
+		t.Fatalf("get: got %v, want ErrUnavailable", err)
+	}
+	if err := client.Set(ctx, "k", "v", time.Minute); err != ErrUnavailable {
+		t.Fatalf("set: got %v, want ErrUnavailable", err)
+	}
+	if _, err := client.Incr(ctx, "c"); err != ErrUnavailable {
+		t.Fatalf("incr: got %v, want ErrUnavailable", err)
 	}
 }
