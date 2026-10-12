@@ -18,8 +18,11 @@ func effectivePermissions(db *gorm.DB, username string) []string {
 	if codes, ok := cachedEffectivePermissions(username); ok {
 		return codes
 	}
+	// 查库前捕获 epoch，回填用它：若 RBAC 写在查库期间发生，回填的是旧 epoch，
+	// 读取时会因 epoch 失配而回源，避免「新 epoch + 旧 codes」的脏组合被服务。
+	epoch, _ := permEpoch()
 	codes := queryEffectivePermissions(db, username)
-	cacheEffectivePermissions(username, codes)
+	cacheEffectivePermissions(username, codes, epoch)
 	return codes
 }
 

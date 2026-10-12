@@ -29,7 +29,7 @@ func TestEffectivePermissionsUsesCache(t *testing.T) {
 
 	db := permTestDB(t) // 空库，无任何数据
 
-	cacheEffectivePermissions("alice", []string{"product:manage"})
+	cacheEffectivePermissions("alice", []string{"product:manage"}, 0)
 	got := effectivePermissions(db, "alice")
 	if !hasPermission(got, "product:manage") {
 		t.Fatalf("expected cached permission product:manage, got %v", got)
@@ -41,7 +41,7 @@ func TestCachedPermsStaleAfterInvalidate(t *testing.T) {
 	permCache = redisx.New(redisx.Config{Addr: mr.Addr()})
 	t.Cleanup(func() { permCache = nil })
 
-	cacheEffectivePermissions("alice", []string{"product:manage"})
+	cacheEffectivePermissions("alice", []string{"product:manage"}, 0)
 	if _, ok := cachedEffectivePermissions("alice"); !ok {
 		t.Fatal("expected cache hit before invalidation")
 	}
@@ -90,12 +90,25 @@ func TestEmptyCodesCached(t *testing.T) {
 	permCache = redisx.New(redisx.Config{Addr: mr.Addr()})
 	t.Cleanup(func() { permCache = nil })
 
-	cacheEffectivePermissions("nobody", nil)
+	cacheEffectivePermissions("nobody", nil, 0)
 	codes, ok := cachedEffectivePermissions("nobody")
 	if !ok {
 		t.Fatal("expected cache hit for empty codes")
 	}
 	if len(codes) != 0 {
 		t.Fatalf("expected empty codes, got %v", codes)
+	}
+}
+
+func TestCacheBackfillUsesGivenEpoch(t *testing.T) {
+	mr := miniredis.RunT(t)
+	permCache = redisx.New(redisx.Config{Addr: mr.Addr()})
+	t.Cleanup(func() { permCache = nil })
+
+	invalidatePermCache() // 当前 epoch = 1
+	// 用查库前的旧 epoch(0) 回填：即便 codes 是查库结果，entry.Epoch 与当前 epoch 不一致，必须 miss
+	cacheEffectivePermissions("alice", []string{"product:manage"}, 0)
+	if _, ok := cachedEffectivePermissions("alice"); ok {
+		t.Fatal("expected miss: backfill stamped with stale epoch must not be served")
 	}
 }

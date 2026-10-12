@@ -28,6 +28,24 @@ type permCacheEntry struct {
 	Codes []string `json:"c"`
 }
 
+// permEpoch 返回当前全局版本号。Redis 不可用返回 ok=false；epoch 键缺失视为 0。
+func permEpoch() (int64, bool) {
+	if permCache == nil || !permCache.Available() {
+		return 0, false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), permOpTimeout)
+	defer cancel()
+	s, err := permCache.Get(ctx, permEpochKey)
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return 0, true
+		}
+		return 0, false
+	}
+	epoch, _ := strconv.ParseInt(s, 10, 64)
+	return epoch, true
+}
+
 // cachedEffectivePermissions 读取并校验缓存的权限码；未命中/不可用返回 ok=false。
 func cachedEffectivePermissions(username string) ([]string, bool) {
 	if permCache == nil || !permCache.Available() {
@@ -36,13 +54,8 @@ func cachedEffectivePermissions(username string) ([]string, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), permOpTimeout)
 	defer cancel()
 
-	epoch := int64(0)
-	if s, err := permCache.Get(ctx, permEpochKey); err == nil {
-		epoch, _ = strconv.ParseInt(s, 10, 64)
-	} else if !errors.Is(err, redis.Nil) {
-		return nil, false
-	}
-
+	// 先读用户键、再读 epoch：若 RBAC 写落在两次读之间，entry.Epoch != epoch → miss（保守正确），
+	// 不会出现「读旧 epoch + 读到已过期 entry」的错误命中。
 	val, err := permCache.Get(ctx, permKeyPrefix+username)
 	if err != nil {
 		return nil, false
@@ -51,28 +64,28 @@ func cachedEffectivePermissions(username string) ([]string, bool) {
 	if err := json.Unmarshal([]byte(val), &entry); err != nil {
 		return nil, false
 	}
+
+	epoch, ok := permEpoch()
+	if !ok {
+		return nil, false
+	}
 	if entry.Epoch != epoch {
 		return nil, false
 	}
 	return entry.Codes, true
 }
 
-// cacheEffectivePermissions 回填缓存（best-effort，忽略错误）。
-func cacheEffectivePermissions(username string, codes []string) {
+// cacheEffectivePermissions 用查库前捕获的 epoch 回填缓存（best-effort，忽略错误）。
+func cacheEffectivePermissions(username string, codes []string, epoch int64) {
 	if permCache == nil || !permCache.Available() {
 		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), permOpTimeout)
-	defer cancel()
-
-	epoch := int64(0)
-	if s, err := permCache.Get(ctx, permEpochKey); err == nil {
-		epoch, _ = strconv.ParseInt(s, 10, 64)
 	}
 	b, err := json.Marshal(permCacheEntry{Epoch: epoch, Codes: codes})
 	if err != nil {
 		return
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), permOpTimeout)
+	defer cancel()
 	_ = permCache.Set(ctx, permKeyPrefix+username, string(b), permTTL)
 }
 
