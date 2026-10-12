@@ -24,7 +24,7 @@ type Config struct {
 func ConfigFromEnv() Config {
 	db, _ := strconv.Atoi(os.Getenv("REDIS_DB"))
 	return Config{
-		Addr:     envOr("REDIS_ADDR", "localhost:6379"),
+		Addr:     envOr("REDIS_ADDR", "192.168.57.47:6379"),
 		Password: os.Getenv("REDIS_PASSWORD"),
 		DB:       db,
 	}
