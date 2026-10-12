@@ -13,8 +13,18 @@ func hasPermission(perms []string, perm string) bool {
 	return slices.Contains(perms, perm)
 }
 
-// effectivePermissions 返回用户在数据库中的有效权限点并集（一次 JOIN，避免 N+1）。
+// effectivePermissions 返回用户在数据库中的有效权限点并集（优先读缓存，miss 则查库回填）。
 func effectivePermissions(db *gorm.DB, username string) []string {
+	if codes, ok := cachedEffectivePermissions(username); ok {
+		return codes
+	}
+	codes := queryEffectivePermissions(db, username)
+	cacheEffectivePermissions(username, codes)
+	return codes
+}
+
+// queryEffectivePermissions 用一次 JOIN 查用户的有效权限码（避免 N+1）。
+func queryEffectivePermissions(db *gorm.DB, username string) []string {
 	var codes []string
 	db.Model(&model.Permission{}).
 		Select("DISTINCT shop_permissions.code").
