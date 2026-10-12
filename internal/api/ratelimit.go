@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"shop/internal/logx"
 	"shop/internal/redisx"
 )
 
@@ -87,12 +88,15 @@ type fallbackLimiter struct {
 	redis     *redisLimiter
 	memory    Limiter
 	available func() bool
+	logErr    func(err error) // Redis 出错时记录（限频）；nil 表示不记录
 }
 
 func (f *fallbackLimiter) Allow(ip string) bool {
 	if f.available() {
 		if ok, err := f.redis.tryAllow(ip); err == nil {
 			return ok
+		} else if f.logErr != nil {
+			f.logErr(err)
 		}
 	}
 	return f.memory.Allow(ip)
@@ -104,6 +108,23 @@ func newFallbackLimiter(client *redisx.Client, keyPrefix string, window time.Dur
 		redis:     newRedisLimiter(client, keyPrefix, window, limit),
 		memory:    newRateLimiter(window, limit),
 		available: client.Available,
+		logErr:    newThrottledErrLogger(time.Now, 10*time.Second, logx.L().Warnf),
+	}
+}
+
+// newThrottledErrLogger 返回限频的错误日志函数：同一 period 内最多记录一条，
+// 避免 Redis 宕机期间每个请求都刷一条 warn。
+func newThrottledErrLogger(now func() time.Time, period time.Duration, logf func(string, ...any)) func(err error) {
+	var mu sync.Mutex
+	var last time.Time
+	return func(err error) {
+		mu.Lock()
+		defer mu.Unlock()
+		t := now()
+		if t.Sub(last) >= period {
+			last = t
+			logf("redis rate limiter error, falling back to in-memory: %v", err)
+		}
 	}
 }
 

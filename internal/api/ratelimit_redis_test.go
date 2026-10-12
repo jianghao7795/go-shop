@@ -1,6 +1,8 @@
 package api
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -90,5 +92,53 @@ func TestFallbackLimiterDegradesOnRedisError(t *testing.T) {
 	}
 	if l.Allow("1.2.3.4") {
 		t.Fatal("second request should be rejected by memory limiter")
+	}
+}
+
+func TestFallbackLimiterLogsOnRedisError(t *testing.T) {
+	mr := miniredis.RunT(t)
+	client := redisx.New(redisx.Config{Addr: mr.Addr()})
+
+	var logged []error
+	l := &fallbackLimiter{
+		redis:     newRedisLimiter(client, "login", time.Minute, 1),
+		memory:    newRateLimiter(time.Minute, 1),
+		available: client.Available,
+		logErr:    func(err error) { logged = append(logged, err) },
+	}
+
+	// Redis 正常时不应记录错误
+	if !l.Allow("1.2.3.4") {
+		t.Fatal("first request should be allowed")
+	}
+	if len(logged) != 0 {
+		t.Fatalf("expected no log on success, got %d", len(logged))
+	}
+
+	// 模拟 Redis 中途宕机：应落到内存并记录一次错误
+	mr.Close()
+	if !l.Allow("2.2.2.2") {
+		t.Fatal("should fall back to memory and allow")
+	}
+	if len(logged) != 1 {
+		t.Fatalf("expected 1 logged error, got %d", len(logged))
+	}
+}
+
+func TestThrottledErrLogger(t *testing.T) {
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	var msgs []string
+	logf := func(format string, args ...any) { msgs = append(msgs, fmt.Sprintf(format, args...)) }
+	l := newThrottledErrLogger(func() time.Time { return now }, time.Minute, logf)
+
+	l(errors.New("a"))
+	l(errors.New("b")) // 同一窗口内应被限频
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(msgs))
+	}
+	now = now.Add(time.Minute)
+	l(errors.New("c"))
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages after window, got %d", len(msgs))
 	}
 }
