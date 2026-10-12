@@ -12,6 +12,7 @@ import (
 	"shop/internal/database"
 	"shop/internal/logx"
 	"shop/internal/model"
+	"shop/internal/redisx"
 )
 
 // Start 启动 Gin API 服务器，监听 :8080（可用 API_PORT 覆盖）。
@@ -121,8 +122,13 @@ func Start() {
 		payDisabled = "支付未配置"
 	}
 	router.GET("/api/notifications/stream", tokenFromQuery(), jwtMiddleware.MiddlewareFunc(), streamNotifications(hub))
-	loginLimiter := newRateLimiter(time.Minute, 10)
-	registerLimiter := newRateLimiter(time.Minute, 10)
+	rdsCfg := redisx.ConfigFromEnv()
+	rds := redisx.New(rdsCfg)
+	if !rds.Available() {
+		logx.L().Warnf("redis unavailable at %s, rate limiter falls back to in-memory", rdsCfg.Addr)
+	}
+	loginLimiter := newFallbackLimiter(rds, "login", time.Minute, 10)
+	registerLimiter := newFallbackLimiter(rds, "register", time.Minute, 10)
 	router.POST("/api/login", rateLimitMiddleware(loginLimiter), jwtMiddleware.LoginHandler)
 	router.POST("/api/register", rateLimitMiddleware(registerLimiter), registerHandler(db))
 	router.POST("/api/pay/alipay/notify", handleAlipayNotify(db, payer))
