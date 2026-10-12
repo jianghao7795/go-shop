@@ -26,6 +26,7 @@ const error = ref("");
 const reviews = ref<any[]>([]);
 const avg = ref(0);
 const reviewCount = ref(0);
+const reviewsActive = ref<string[]>([]);
 
 async function loadProduct() {
   loading.value = true;
@@ -107,18 +108,24 @@ onMounted(() => {
         </van-cell-group>
       </section>
       <section class="detail-reviews">
-        <div class="reviews-head">
-          <h3>商品评价</h3>
-          <span>{{ reviewCount }} 条 · 均分 {{ avg.toFixed(1) }}</span>
-        </div>
-        <van-empty v-if="!reviews.length" description="暂无评价" />
-        <div v-for="r in reviews" :key="r.id" class="review-item">
-          <div class="review-meta">
-            <span class="review-user">{{ r.userId }}</span>
-            <Rate :model-value="r.rating" readonly allow-half size="14" color="#ff4d67" />
-          </div>
-          <p class="review-content">{{ r.content || "此用户没有填写文字评价" }}</p>
-        </div>
+        <van-collapse v-model="reviewsActive">
+          <van-collapse-item name="reviews">
+            <template #title>
+              <div class="reviews-title">
+                <span class="reviews-title-name">商品评价</span>
+                <span class="reviews-title-meta">{{ reviewCount }} 条 · 均分 {{ avg.toFixed(1) }}</span>
+              </div>
+            </template>
+            <van-empty v-if="!reviews.length" description="暂无评价" />
+            <div v-for="r in reviews" :key="r.id" class="review-item">
+              <div class="review-meta">
+                <span class="review-user">{{ r.userId }}</span>
+                <Rate :model-value="r.rating" readonly allow-half size="14" color="#ff4d67" />
+              </div>
+              <p class="review-content">{{ r.content || "此用户没有填写文字评价" }}</p>
+            </div>
+          </van-collapse-item>
+        </van-collapse>
       </section>
       <section v-if="product.detail" class="detail-rich">
         <h3>商品详情</h3>
@@ -139,21 +146,22 @@ onMounted(() => {
 <style scoped>
 .detail-reviews {
   margin: 12px;
-  padding: 12px;
   background: #fff;
   border-radius: 10px;
+  overflow: hidden;
 }
-.reviews-head {
+.reviews-title {
+  flex: 1;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
 }
-.reviews-head h3 {
-  margin: 0;
+.reviews-title-name {
   font-size: 16px;
+  font-weight: 600;
+  color: #1f2430;
 }
-.reviews-head span {
+.reviews-title-meta {
   font-size: 12px;
   color: #969ba5;
 }
