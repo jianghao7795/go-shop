@@ -864,6 +864,7 @@ func adminCreateRole(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "创建失败"})
 			return
 		}
+		invalidatePermCache()
 		c.JSON(http.StatusOK, toRoleView(db, item))
 	}
 }
@@ -929,6 +930,7 @@ func adminUpdateRole(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
 			return
 		}
+		invalidatePermCache()
 		c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
 	}
 }
@@ -965,6 +967,7 @@ func adminDeleteRole(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "删除失败"})
 			return
 		}
+		invalidatePermCache()
 		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 	}
 }
@@ -1021,6 +1024,7 @@ func adminCreatePermission(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "创建失败"})
 			return
 		}
+		invalidatePermCache()
 		c.JSON(http.StatusOK, item)
 	}
 }
@@ -1051,6 +1055,7 @@ func adminDeletePermission(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"message": "权限不存在"})
 			return
 		}
+		invalidatePermCache()
 		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 	}
 }
@@ -1192,6 +1197,7 @@ func adminSetUserRoles(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
 			return
 		}
+		invalidatePermCache()
 		c.JSON(http.StatusOK, gin.H{"message": "已更新"})
 	}
 }
