@@ -27,6 +27,14 @@ func productDetailHandler(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "invalid product id"})
 			return
 		}
+		if item, ok := cachedProduct(id); ok {
+			if !item.OnShelf {
+				c.JSON(http.StatusNotFound, gin.H{"message": "product not found"})
+				return
+			}
+			c.JSON(http.StatusOK, item)
+			return
+		}
 		var item model.Product
 		if queryErr := db.First(&item, id).Error; queryErr != nil {
 			c.JSON(http.StatusNotFound, gin.H{"message": "product not found"})
@@ -37,6 +45,7 @@ func productDetailHandler(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
 			return
 		}
 		db.Where("product_id = ?", id).Find(&item.Skus)
+		cacheProduct(item)
 		c.JSON(http.StatusOK, item)
 	}
 }

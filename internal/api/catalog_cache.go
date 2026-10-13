@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"time"
 
 	"shop/internal/model"
@@ -58,4 +59,53 @@ func invalidateCategoryCache() {
 	ctx, cancel := context.WithTimeout(context.Background(), catalogOpTimeout)
 	defer cancel()
 	_ = catalogCache.Del(ctx, categoryKey)
+}
+
+const (
+	productEpochKey  = "product:epoch"
+	productKeyPrefix = "product:"
+	productTTL       = 5 * time.Minute
+)
+
+// cachedProduct 读缓存商品；未命中/不可用返回 ok=false。
+func cachedProduct(id int) (model.Product, bool) {
+	if catalogCache == nil || !catalogCache.Available() {
+		return model.Product{}, false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), catalogOpTimeout)
+	defer cancel()
+	val, err := catalogCache.Get(ctx, productKeyPrefix+strconv.Itoa(id))
+	if err != nil {
+		return model.Product{}, false
+	}
+	var p model.Product
+	if err := json.Unmarshal([]byte(val), &p); err != nil {
+		return model.Product{}, false
+	}
+	return p, true
+}
+
+// cacheProduct 回填商品详情缓存（best-effort）。
+func cacheProduct(p model.Product) {
+	if catalogCache == nil || !catalogCache.Available() {
+		return
+	}
+	b, err := json.Marshal(p)
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), catalogOpTimeout)
+	defer cancel()
+	_ = catalogCache.Set(ctx, productKeyPrefix+strconv.Itoa(p.ID), string(b), productTTL)
+}
+
+// invalidateProductCache 商品变更：DEL 详情 + INCR 列表 epoch（epoch 由 Task 4 的列表缓存消费）。
+func invalidateProductCache(id int) {
+	if catalogCache == nil || !catalogCache.Available() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), catalogOpTimeout)
+	defer cancel()
+	_ = catalogCache.Del(ctx, productKeyPrefix+strconv.Itoa(id))
+	_, _ = catalogCache.Incr(ctx, productEpochKey)
 }

@@ -94,6 +94,7 @@ func submitOrderReviews(db *gorm.DB) gin.HandlerFunc {
 			var avg float64
 			db.Model(&model.Review{}).Where("product_id = ?", r.ProductID).Select("COALESCE(AVG(rating), 0)").Scan(&avg)
 			db.Model(&model.Product{}).Where("id = ?", r.ProductID).Update("rating", avg)
+			invalidateProductCache(r.ProductID)
 		}
 		db.Model(&model.Order{}).Where("id = ?", id).Update("status", model.OrderStatusFinished)
 		c.JSON(http.StatusOK, gin.H{"message": "评价成功"})

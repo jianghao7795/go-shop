@@ -216,6 +216,7 @@ func adminCreateProduct(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "创建失败"})
 			return
 		}
+		invalidateProductCache(item.ID)
 		c.JSON(http.StatusOK, item)
 	}
 }
@@ -260,6 +261,7 @@ func adminUpdateProduct(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
 			return
 		}
+		invalidateProductCache(id)
 		c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
 	}
 }
@@ -289,6 +291,7 @@ func adminDeleteProduct(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"message": "商品不存在"})
 			return
 		}
+		invalidateProductCache(id)
 		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 	}
 }
@@ -319,6 +322,7 @@ func adminToggleFeatured(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
 			return
 		}
+		invalidateProductCache(id)
 		c.JSON(http.StatusOK, gin.H{"message": "已更新"})
 	}
 }
@@ -1100,6 +1104,7 @@ func adminCreateSku(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "创建失败"})
 			return
 		}
+		invalidateProductCache(pid)
 		c.JSON(http.StatusOK, sku)
 	}
 }
@@ -1115,15 +1120,16 @@ func adminDeleteSku(db *gorm.DB) gin.HandlerFunc {
 		if !dbRequired(c, db) {
 			return
 		}
-		res := db.Delete(&model.ProductSku{}, id)
-		if res.Error != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"message": "删除失败"})
-			return
-		}
-		if res.RowsAffected == 0 {
+		var sku model.ProductSku
+		if err := db.First(&sku, id).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"message": "规格不存在"})
 			return
 		}
+		if err := db.Delete(&model.ProductSku{}, id).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "删除失败"})
+			return
+		}
+		invalidateProductCache(sku.ProductID)
 		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 	}
 }
