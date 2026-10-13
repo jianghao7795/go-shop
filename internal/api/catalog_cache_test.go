@@ -1,9 +1,12 @@
 package api
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/gin-gonic/gin"
 
 	"shop/internal/model"
 	"shop/internal/redisx"
@@ -81,5 +84,46 @@ func TestCachedProductsStaleEpoch(t *testing.T) {
 	invalidateProductCache(1) // INCR product:epoch
 	if _, ok := cachedProducts(false, "", "id"); ok {
 		t.Fatal("expected miss after epoch bump")
+	}
+}
+
+func TestMarkPaidInvalidatesProductCache(t *testing.T) {
+	mr := miniredis.RunT(t)
+	catalogCache = redisx.New(redisx.Config{Addr: mr.Addr()})
+	t.Cleanup(func() { catalogCache = nil })
+
+	db := newTestDB(t)
+	p := model.Product{Name: "A", Price: 1000, Stock: 5}
+	db.Create(&p)
+	cacheProduct(p)
+	order := model.Order{OrderNo: "O-CACHE", UserID: "u1", Status: model.OrderStatusPending, Amount: 1000,
+		Items: []model.OrderItem{{ProductID: p.ID, Name: "A", Price: 1000, Quantity: 2}}}
+	db.Create(&order)
+
+	if err := markPaid(db, order.ID, "trade-cache"); err != nil {
+		t.Fatalf("markPaid: %v", err)
+	}
+	if _, ok := cachedProduct(p.ID); ok {
+		t.Fatal("expected product cache invalidated after markPaid")
+	}
+}
+
+func TestProductsHandlerDoesNotCacheFallback(t *testing.T) {
+	mr := miniredis.RunT(t)
+	catalogCache = redisx.New(redisx.Config{Addr: mr.Addr()})
+	t.Cleanup(func() { catalogCache = nil })
+
+	db := newTestDB(t)
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/api/products", productsHandler(db, true))
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest("GET", "/api/products", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if mr.Exists(productListKey(false, "", "")) {
+		t.Fatal("fallback products must not be cached")
 	}
 }

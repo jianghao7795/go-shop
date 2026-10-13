@@ -111,15 +111,17 @@ func productsHandler(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
 		if err := query.Order(productSortOrder(sort)).Find(&items).Error; err != nil {
 			items = nil
 		}
+		fromFallback := false
 		if len(items) == 0 && !hasFilter {
 			// 仅在商品表确实为空时才回退到内置目录，避免「全部下架」时误返回兜底数据
 			var total int64
 			db.Model(&model.Product{}).Count(&total)
 			if total == 0 {
 				items = model.FallbackProducts
+				fromFallback = true
 			}
 		}
-		if search == "" && len(items) > 0 {
+		if search == "" && len(items) > 0 && !fromFallback {
 			cacheProducts(featured, category, sort, items, epoch)
 		}
 		c.JSON(http.StatusOK, items)

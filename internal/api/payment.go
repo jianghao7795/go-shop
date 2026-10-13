@@ -108,6 +108,14 @@ func markPaid(db *gorm.DB, orderID uint, tradeNo string) error {
 			return err
 		}
 	}
+	// 库存/销量已变，失效相关商品缓存（详情 + 列表）。
+	seen := map[int]bool{}
+	for _, it := range order.Items {
+		if it.ProductID > 0 && !seen[it.ProductID] {
+			seen[it.ProductID] = true
+			invalidateProductCache(it.ProductID)
+		}
+	}
 	return nil
 }
 
