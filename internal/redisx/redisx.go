@@ -109,3 +109,11 @@ func (c *Client) Incr(ctx context.Context, key string) (int64, error) {
 	}
 	return c.rdb.Incr(ctx, key).Result()
 }
+
+// Del 删除 key（key 不存在也不报错）。
+func (c *Client) Del(ctx context.Context, key string) error {
+	if !c.available {
+		return ErrUnavailable
+	}
+	return c.rdb.Del(ctx, key).Err()
+}

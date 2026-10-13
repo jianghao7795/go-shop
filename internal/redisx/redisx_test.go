@@ -94,3 +94,28 @@ func TestGetSetIncrUnavailable(t *testing.T) {
 		t.Fatalf("incr: got %v, want ErrUnavailable", err)
 	}
 }
+
+func TestDel(t *testing.T) {
+	mr := miniredis.RunT(t)
+	client := New(Config{Addr: mr.Addr()})
+	ctx := context.Background()
+	if err := client.Set(ctx, "k", "v", time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Del(ctx, "k"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Get(ctx, "k"); !errors.Is(err, redis.Nil) {
+		t.Fatalf("after del: got %v, want redis.Nil", err)
+	}
+	if err := client.Del(ctx, "nope"); err != nil {
+		t.Fatalf("del missing: %v", err)
+	}
+}
+
+func TestDelUnavailable(t *testing.T) {
+	client := New(Config{Addr: "127.0.0.1:1"})
+	if err := client.Del(context.Background(), "k"); err != ErrUnavailable {
+		t.Fatalf("del: got %v, want ErrUnavailable", err)
+	}
+}
