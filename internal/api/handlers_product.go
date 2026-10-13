@@ -74,8 +74,29 @@ func productsHandler(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
 		}
 		search := c.Query("search")
 		category := c.Query("category")
+		if category == "all" {
+			category = ""
+		}
 		featured := c.Query("featured") == "true"
-		hasFilter := search != "" || (category != "" && category != "all") || featured
+		sort := c.Query("sort")
+		if featured {
+			sort = "sales_desc"
+		}
+		hasFilter := search != "" || category != "" || featured
+
+		if search == "" {
+			if items, ok := cachedProducts(featured, category, sort); ok {
+				c.JSON(http.StatusOK, items)
+				return
+			}
+		}
+
+		// 查库前捕获 epoch，回填用它：避免「写后 epoch + 写前 items」的脏组合（同权限缓存）。
+		var epoch int64
+		if search == "" {
+			epoch, _ = productEpoch()
+		}
+
 		query := db.Model(&model.Product{}).Where("on_shelf = ?", true)
 		if featured {
 			query = query.Where("featured = ?", true)
@@ -83,12 +104,8 @@ func productsHandler(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
 		if search != "" {
 			query = query.Where("name LIKE ? OR description LIKE ?", "%"+search+"%", "%"+search+"%")
 		}
-		if category != "" && category != "all" {
+		if category != "" {
 			query = query.Where("category = ?", category)
-		}
-		sort := c.Query("sort")
-		if featured {
-			sort = "sales_desc"
 		}
 		var items []model.Product
 		if err := query.Order(productSortOrder(sort)).Find(&items).Error; err != nil {
@@ -101,6 +118,9 @@ func productsHandler(db *gorm.DB, databaseReady bool) gin.HandlerFunc {
 			if total == 0 {
 				items = model.FallbackProducts
 			}
+		}
+		if search == "" && len(items) > 0 {
+			cacheProducts(featured, category, sort, items, epoch)
 		}
 		c.JSON(http.StatusOK, items)
 	}
