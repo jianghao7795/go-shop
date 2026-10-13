@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { showToast } from "vant";
+import { showToast, type SwipeInstance } from "vant";
 import { useShopCart } from "../stores/shop";
 import { useUserStore } from "../stores/user";
 import http from "../lib/http";
@@ -43,6 +43,7 @@ const loading = ref(false);
 const loadError = ref("");
 const products = ref<Product[]>([]);
 const featured = ref<Product[]>([]);
+const featuredSwipe = ref<SwipeInstance>();
 
 async function loadProducts() {
   loading.value = true;
@@ -124,17 +125,23 @@ onMounted(() => {
         <h2>优选好物</h2>
         <span>销量精选</span>
       </div>
-      <div class="featured-scroll">
-        <article v-for="p in featured" :key="p.id" class="featured-card" @click="$router.push(`/product/${p.id}`)">
-          <div class="featured-thumb" :style="{ background: p.color }">
-            {{ p.emoji }}
-          </div>
-          <h3>{{ p.name }}</h3>
-          <div class="featured-meta">
-            <span class="featured-price">¥{{ p.price.toFixed(2) }}</span>
-            <span class="featured-sales">已售 {{ p.sales }}</span>
-          </div>
-        </article>
+      <div class="featured-wrap">
+        <van-swipe ref="featuredSwipe" :autoplay="4000" loop lazy-render>
+          <van-swipe-item v-for="p in featured" :key="p.id">
+            <article class="featured-card" @click="$router.push(`/product/${p.id}`)">
+              <div class="featured-thumb" :style="{ background: p.color }">
+                {{ p.emoji }}
+              </div>
+              <h3>{{ p.name }}</h3>
+              <div class="featured-meta">
+                <span class="featured-price">¥{{ p.price.toFixed(2) }}</span>
+                <span class="featured-sales">已售 {{ p.sales }}</span>
+              </div>
+            </article>
+          </van-swipe-item>
+        </van-swipe>
+        <button class="featured-arrow featured-arrow--left" aria-label="上一张" @click="featuredSwipe?.prev()">‹</button>
+        <button class="featured-arrow featured-arrow--right" aria-label="下一张" @click="featuredSwipe?.next()">›</button>
       </div>
 
       <div class="section-heading">
@@ -175,18 +182,30 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.featured-scroll {
-  display: flex;
-  gap: 10px;
+.featured-wrap {
+  position: relative;
+  width: 100%;
   padding: 10px 12px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
 }
-.featured-scroll::-webkit-scrollbar {
-  display: none;
+.featured-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  font-size: 18px;
+  line-height: 30px;
+  text-align: center;
+  cursor: pointer;
+  z-index: 1;
 }
+.featured-arrow--left { left: 14px; }
+.featured-arrow--right { right: 14px; }
 .featured-card {
-  flex: 0 0 132px;
   overflow: hidden;
   border-radius: 12px;
   background: #fff;
