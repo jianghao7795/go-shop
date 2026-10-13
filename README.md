@@ -4,6 +4,14 @@ Congratulations on generating your Wails3 application! This README will guide yo
 
 ## Getting Started
 
+On Ubuntu 22.04, install the native desktop build dependencies first:
+
+```sh
+sudo apt-get install -y pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+```
+
+The Linux build tasks use the `gtk3` build tag by default. When running Go directly, use `go run -tags gtk3 .`.
+
 1. Navigate to your project directory in the terminal.
 
 2. To run your application in development mode, use the following command:

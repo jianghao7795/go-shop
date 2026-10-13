@@ -4,6 +4,9 @@ includes:
   common: ../Taskfile.yml
 
 vars:
+  # Ubuntu 22.04 uses GTK3 / WebKit2GTK 4.1 for native desktop builds.
+  EXTRA_TAGS: gtk3
+
   # Signing configuration - edit these values for your project
   # PGP_KEY: "path/to/signing-key.asc"
   # SIGN_ROLE: "builder"  # Options: origin, maint, archive, builder
