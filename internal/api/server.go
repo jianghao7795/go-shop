@@ -128,6 +128,7 @@ func Start() {
 		logx.L().Warnf("redis unavailable at %s, rate limiter falls back to in-memory", rdsCfg.Addr)
 	}
 	permCache = rds
+	catalogCache = rds
 	loginLimiter := newFallbackLimiter(rds, "login", time.Minute, 10)
 	registerLimiter := newFallbackLimiter(rds, "register", time.Minute, 10)
 	router.POST("/api/login", rateLimitMiddleware(loginLimiter), jwtMiddleware.LoginHandler)

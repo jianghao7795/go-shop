@@ -384,6 +384,7 @@ func adminCreateCategory(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "创建失败"})
 			return
 		}
+		invalidateCategoryCache()
 		c.JSON(http.StatusOK, item)
 	}
 }
@@ -425,6 +426,7 @@ func adminUpdateCategory(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
 			return
 		}
+		invalidateCategoryCache()
 		c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
 	}
 }
@@ -448,6 +450,7 @@ func adminDeleteCategory(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"message": "分类不存在"})
 			return
 		}
+		invalidateCategoryCache()
 		c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 	}
 }
