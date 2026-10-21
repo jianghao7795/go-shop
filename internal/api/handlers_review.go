@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -80,23 +81,43 @@ func submitOrderReviews(db *gorm.DB) gin.HandlerFunc {
 				return
 			}
 		}
-		for _, r := range req.Reviews {
-			db.Create(&model.Review{
-				UserID:    currentUser(c),
-				ProductID: r.ProductID,
-				OrderID:   order.ID,
-				Rating:    r.Rating,
-				Content:   r.Content,
-			})
+		stateChanged := errors.New("order state changed")
+		err = db.Transaction(func(tx *gorm.DB) error {
+			// Claim completion atomically so concurrent aftersale/refund operations cannot be overwritten.
+			r := tx.Model(&model.Order{}).Where("id = ? AND user_id = ? AND status = ?", id, currentUser(c), model.OrderStatusCompleted).Update("status", model.OrderStatusFinished)
+			if r.Error != nil {
+				return r.Error
+			}
+			if r.RowsAffected == 0 {
+				return stateChanged
+			}
+			for _, review := range req.Reviews {
+				if err := tx.Create(&model.Review{UserID: currentUser(c), ProductID: review.ProductID, OrderID: order.ID, Rating: review.Rating, Content: review.Content}).Error; err != nil {
+					return err
+				}
+			}
+			for _, review := range req.Reviews {
+				var avg float64
+				if err := tx.Model(&model.Review{}).Where("product_id = ?", review.ProductID).Select("COALESCE(AVG(rating), 0)").Scan(&avg).Error; err != nil {
+					return err
+				}
+				if err := tx.Model(&model.Product{}).Where("id = ?", review.ProductID).Update("rating", avg).Error; err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		if errors.Is(err, stateChanged) {
+			c.JSON(http.StatusConflict, gin.H{"message": "订单状态已变化，请刷新后重试"})
+			return
 		}
-		// 更新各商品平均评分，回流到商品表供列表展示。
-		for _, r := range req.Reviews {
-			var avg float64
-			db.Model(&model.Review{}).Where("product_id = ?", r.ProductID).Select("COALESCE(AVG(rating), 0)").Scan(&avg)
-			db.Model(&model.Product{}).Where("id = ?", r.ProductID).Update("rating", avg)
-			invalidateProductCache(r.ProductID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "评价保存失败，请稍后重试"})
+			return
 		}
-		db.Model(&model.Order{}).Where("id = ?", id).Update("status", model.OrderStatusFinished)
+		for _, review := range req.Reviews {
+			invalidateProductCache(review.ProductID)
+		}
 		c.JSON(http.StatusOK, gin.H{"message": "评价成功"})
 	}
 }

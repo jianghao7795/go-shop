@@ -18,6 +18,11 @@ async function load() {
   try {
     const res = await http.get("/api/orders/" + route.params.id);
     order.value = res.data;
+    if (["cancelled", "refunded"].includes(order.value.status)) {
+      showToast(order.value.status === "cancelled" ? "订单已取消" : "订单已退款");
+      router.replace("/orders/" + order.value.id);
+      return;
+    }
     if (order.value.status !== "pending") {
       // 已支付或后续状态（paid/shipped/completed/finished/aftersale）→ 视为已完成支付
       showToast("订单已支付");
@@ -34,6 +39,7 @@ async function load() {
 async function createPayment() {
   try {
     const res = await http.post("/api/orders/" + route.params.id + "/pay");
+    if (res.data.status === "paid") { showToast("订单已完成支付"); router.replace("/orders/" + route.params.id); return; }
     qrImage.value = res.data.qrImage;
     loading.value = false;
     startPolling();
@@ -59,9 +65,9 @@ async function poll() {
       stopPolling();
       showToast("支付成功");
       router.replace("/orders");
-    } else if (status === "closed") {
+    } else if (status === "closed" || status === "refunded") {
       stopPolling();
-      errorMsg.value = "支付已关闭，请重新下单";
+      errorMsg.value = status === "closed" ? "支付已关闭，请重新下单" : "订单已退款";
     }
   } catch (err) {
     const e = err as any;

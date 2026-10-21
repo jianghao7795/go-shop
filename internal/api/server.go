@@ -31,6 +31,10 @@ func Start() {
 		logx.L().Errorf("mysql migration failed: %v", migrateErr)
 		databaseReady = false
 	} else {
+		if err := migrateOrderLifecycle(db); err != nil {
+			logx.L().Errorf("order lifecycle migration failed: %v", err)
+			return
+		}
 		var count int64
 		db.Model(&model.Product{}).Count(&count)
 		if count == 0 {
@@ -151,7 +155,9 @@ func Start() {
 	protected.POST("/orders/:id/pay", payOrder(db, payer, payDisabled))
 	protected.GET("/orders/:id/pay/status", payOrderStatus(db, payer))
 	protected.POST("/orders/:id/reviews", submitOrderReviews(db))
-	protected.PUT("/orders/:id/status", updateOrderStatus(db, hub))
+	protected.PUT("/orders/:id/status", updateOrderStatus(db, hub, payer))
+	protected.POST("/orders/:id/aftersale", applyAftersale(db, hub))
+	protected.PUT("/orders/:id/return", submitReturn(db))
 	protected.GET("/coupons", listCoupons(db, databaseReady))
 	protected.GET("/coupons/mine", listMyCoupons(db))
 	protected.POST("/coupons/:id/claim", claimCoupon(db))
@@ -199,7 +205,10 @@ func Start() {
 	// 订单
 	admin.GET("/orders", requirePermission(db, "order:manage"), adminListOrders(db))
 	admin.GET("/orders/:id", requirePermission(db, "order:manage"), adminGetOrder(db))
-	admin.PUT("/orders/:id/status", requirePermission(db, "order:manage"), adminUpdateOrderStatus(db, hub))
+	admin.PUT("/orders/:id/status", requirePermission(db, "order:manage"), adminUpdateOrderStatus(db, hub, payer))
+	admin.POST("/orders/:id/ship", requirePermission(db, "order:manage"), adminShipOrder(db, hub))
+	admin.POST("/orders/:id/logistics", requirePermission(db, "order:manage"), adminAddLogistics(db))
+	admin.POST("/orders/:id/aftersale", requirePermission(db, "order:manage"), adminAftersale(db, hub, payer))
 	// 优惠券
 	admin.GET("/coupons", requirePermission(db, "coupon:manage"), adminListCoupons(db))
 	admin.POST("/coupons", requirePermission(db, "coupon:manage"), adminCreateCoupon(db))
@@ -218,6 +227,9 @@ func Start() {
 
 	if simulatorsEnabled() {
 		go startSimulators(db, hub)
+	}
+	if databaseReady {
+		go startOrderExpiry(db, payer, hub)
 	}
 
 	port := os.Getenv("API_PORT")

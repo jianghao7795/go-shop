@@ -503,7 +503,7 @@ func adminGetOrder(db *gorm.DB) gin.HandlerFunc {
 }
 
 // adminUpdateOrderStatus 管理员更新任意订单状态，并通知订单所属用户。
-func adminUpdateOrderStatus(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
+func adminUpdateOrderStatus(db *gorm.DB, hub *notificationHub, payers ...alipayPayer) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !dbRequired(c, db) {
 			return
@@ -531,8 +531,23 @@ func adminUpdateOrderStatus(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"message": "订单不存在"})
 			return
 		}
-		if err := db.Model(&model.Order{}).Where("id = ?", id).Update("status", req.Status).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"message": "更新失败"})
+		if req.Status == model.OrderStatusCancelled {
+			var payer alipayPayer
+			if len(payers) > 0 {
+				payer = payers[0]
+			}
+			if _, err := cancelPendingOrder(c.Request.Context(), db, payer, order.ID, nil); err != nil {
+				c.JSON(409, gin.H{"message": err.Error()})
+				return
+			}
+		} else if order.Status == model.OrderStatusCompleted && req.Status == model.OrderStatusFinished {
+			r := db.Model(&model.Order{}).Where("id = ? AND status = ?", id, model.OrderStatusCompleted).Update("status", req.Status)
+			if r.Error != nil || r.RowsAffected == 0 {
+				c.JSON(409, gin.H{"message": "订单状态已变化，请刷新"})
+				return
+			}
+		} else {
+			c.JSON(400, gin.H{"message": "请使用发货或售后操作，不能直接修改支付状态"})
 			return
 		}
 		text := statusText[req.Status]

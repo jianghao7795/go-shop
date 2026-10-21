@@ -10,6 +10,7 @@ import (
 
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 
 	"shop/internal/model"
 )
@@ -25,6 +26,34 @@ func reviewCtx(t *testing.T, orderID uint, productID int) (*gin.Context, *httpte
 	c.Params = gin.Params{{Key: "id", Value: strconv.Itoa(int(orderID))}}
 	c.Set("JWT_PAYLOAD", jwt.MapClaims{"user": "alice"})
 	return c, w
+}
+
+func TestReviewCannotOverwriteConcurrentAftersale(t *testing.T) {
+	db := newTestDB(t)
+	p := model.Product{Name: "A", Price: 1000}
+	db.Create(&p)
+	o := model.Order{OrderNo: "review-race", UserID: "alice", Status: model.OrderStatusCompleted, Items: []model.OrderItem{{ProductID: p.ID, Quantity: 1}}}
+	db.Create(&o)
+	changed := false
+	if err := db.Callback().Query().After("gorm:query").Register("test:aftersale_after_read", func(tx *gorm.DB) {
+		if !changed && tx.Statement.Table == "shop_orders" {
+			changed = true
+			if err := db.Exec("UPDATE shop_orders SET status = ? WHERE id = ?", model.OrderStatusAftersale, o.ID).Error; err != nil {
+				t.Fatal(err)
+			}
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	c, w := reviewCtx(t, o.ID, p.ID)
+	submitOrderReviews(db)(c)
+	requireStatus(t, w, http.StatusConflict)
+	db.First(&o, o.ID)
+	var count int64
+	db.Model(&model.Review{}).Count(&count)
+	if o.Status != model.OrderStatusAftersale || count != 0 {
+		t.Fatalf("aftersale overwritten: %+v reviews=%d", o, count)
+	}
 }
 
 func TestSubmitOrderReviewsUpdatesRating(t *testing.T) {

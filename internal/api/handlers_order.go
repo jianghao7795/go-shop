@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/rand"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -48,6 +49,9 @@ func repricedItems(products map[int]model.Product, skus map[int]model.ProductSku
 		p, ok := products[it.ProductID]
 		if !ok || !p.OnShelf {
 			return nil, "商品不存在或已下架"
+		}
+		if it.SkuID <= 0 && len(p.Skus) > 0 {
+			return nil, "请选择商品规格"
 		}
 		item := model.OrderItem{
 			ProductID: p.ID,
@@ -116,12 +120,8 @@ func createOrder(db *gorm.DB) gin.HandlerFunc {
 		}
 		// 服务端重新计价：按 productId/skuId 查库，忽略客户端提交的价格/名称等字段。
 		ids := make([]int, 0, len(req.Items))
-		skuIDs := make([]int, 0)
 		for _, it := range req.Items {
 			ids = append(ids, it.ProductID)
-			if it.SkuID > 0 {
-				skuIDs = append(skuIDs, it.SkuID)
-			}
 		}
 		var products []model.Product
 		db.Where("id IN ?", ids).Find(&products)
@@ -130,12 +130,16 @@ func createOrder(db *gorm.DB) gin.HandlerFunc {
 			prodMap[p.ID] = p
 		}
 		var skus []model.ProductSku
-		if len(skuIDs) > 0 {
-			db.Where("id IN ?", skuIDs).Find(&skus)
+		if err := db.Where("product_id IN ?", ids).Find(&skus).Error; err != nil {
+			c.JSON(500, gin.H{"message": "读取商品规格失败"})
+			return
 		}
 		skuMap := make(map[int]model.ProductSku, len(skus))
 		for _, s := range skus {
 			skuMap[s.ID] = s
+			p := prodMap[s.ProductID]
+			p.Skus = append(p.Skus, s)
+			prodMap[s.ProductID] = p
 		}
 		items, msg := repricedItems(prodMap, skuMap, req.Items)
 		if msg != "" {
@@ -143,12 +147,15 @@ func createOrder(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		// 下单时软校验库存（支付时才真正扣减）。
+		quantities := map[[2]int]int{}
 		for _, it := range items {
+			key := [2]int{it.ProductID, it.SkuID}
+			quantities[key] += it.Quantity
 			stock := prodMap[it.ProductID].Stock
 			if it.SkuID > 0 {
 				stock = skuMap[it.SkuID].Stock
 			}
-			if stock < it.Quantity {
+			if stock < quantities[key] {
 				c.JSON(http.StatusBadRequest, gin.H{"message": "「" + prodMap[it.ProductID].Name + "」库存不足"})
 				return
 			}
@@ -185,16 +192,17 @@ func createOrder(db *gorm.DB) gin.HandlerFunc {
 			db.Where("id = ? AND user_id = ?", req.AddressID, currentUser(c)).First(&addr)
 		}
 		order := model.Order{
-			OrderNo:      generateOrderNo(),
-			UserID:       currentUser(c),
-			Status:       model.OrderStatusPending,
-			Amount:       amount,
-			UserCouponID: userCouponID,
-			Receiver:     addr.Name,
-			Phone:        addr.Phone,
-			Region:       addr.Region,
-			Detail:       addr.Detail,
-			Items:        items,
+			LifecycleVersion: 1,
+			OrderNo:          generateOrderNo(),
+			UserID:           currentUser(c),
+			Status:           model.OrderStatusPending,
+			Amount:           amount,
+			UserCouponID:     userCouponID,
+			Receiver:         addr.Name,
+			Phone:            addr.Phone,
+			Region:           addr.Region,
+			Detail:           addr.Detail,
+			Items:            items,
 		}
 		if err := db.Create(&order).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "下单失败，请稍后重试"})
@@ -222,7 +230,7 @@ func listOrders(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-func updateOrderStatus(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
+func updateOrderStatus(db *gorm.DB, hub *notificationHub, payers ...alipayPayer) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !dbRequired(c, db) {
 			return
@@ -248,7 +256,27 @@ func updateOrderStatus(db *gorm.DB, hub *notificationHub) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"message": "非法操作"})
 			return
 		}
-		db.Model(&model.Order{}).Where("id = ? AND user_id = ?", id, currentUser(c)).Update("status", req.Status)
+		if req.Status == model.OrderStatusAftersale {
+			c.JSON(400, gin.H{"message": "请填写售后类型和原因后提交申请"})
+			return
+		}
+		if req.Status == model.OrderStatusCancelled {
+			var payer alipayPayer
+			if len(payers) > 0 {
+				payer = payers[0]
+			}
+			user := currentUser(c)
+			if _, err := cancelPendingOrder(c.Request.Context(), db, payer, uint(id), &user); err != nil {
+				c.JSON(409, gin.H{"message": err.Error()})
+				return
+			}
+		} else {
+			r := db.Model(&model.Order{}).Where("id = ? AND user_id = ? AND status = ?", id, currentUser(c), order.Status).Update("status", req.Status)
+			if r.Error != nil || r.RowsAffected == 0 {
+				c.JSON(409, gin.H{"message": "订单状态已变化，请刷新后重试"})
+				return
+			}
+		}
 
 		text := statusText[req.Status]
 		if text == "" {
@@ -308,8 +336,22 @@ func payOrder(db *gorm.DB, payer alipayPayer, payDisabled string) gin.HandlerFun
 			c.JSON(http.StatusBadRequest, gin.H{"message": "订单状态不可支付"})
 			return
 		}
-		qrCode, err := payer.PreCreate(c.Request.Context(), order.OrderNo,
-			order.Amount.YuanString(), "订单 "+order.OrderNo)
+		if time.Since(order.CreatedAt) >= paymentWindow {
+			c.JSON(400, gin.H{"message": "订单已超过付款期限，请重新下单"})
+			return
+		}
+		var qrCode string
+		_, err = changeOrder(db, order.ID, nil, func(tx *gorm.DB, o *model.Order) error {
+			if o.Status != model.OrderStatusPending {
+				return fmt.Errorf("订单状态不可支付")
+			}
+			var err error
+			qrCode, err = payer.PreCreate(c.Request.Context(), o.OrderNo, o.Amount.YuanString(), "订单 "+o.OrderNo)
+			if err == nil {
+				o.PaymentStarted = true
+			}
+			return err
+		})
 		if err != nil {
 			logx.L().Errorf("alipay precreate failed: order %s: %v", order.OrderNo, err)
 			c.JSON(http.StatusBadGateway, gin.H{"message": "支付下单失败，请稍后重试"})
@@ -340,6 +382,14 @@ func payOrderStatus(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"message": "订单不存在"})
 			return
 		}
+		if order.Status == model.OrderStatusCancelled {
+			c.JSON(http.StatusOK, gin.H{"status": "closed"})
+			return
+		}
+		if order.Status == model.OrderStatusRefunded {
+			c.JSON(http.StatusOK, gin.H{"status": "refunded"})
+			return
+		}
 		if order.Status != model.OrderStatusPending {
 			// 非待付款（已支付/已发货/售后/已完成等）视为支付流程已结束。
 			c.JSON(http.StatusOK, gin.H{"status": "paid"})
@@ -363,6 +413,7 @@ func payOrderStatus(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
 			}
 			c.JSON(http.StatusOK, gin.H{"status": "paid"})
 		case alipayStatusClosed:
+			db.Model(&model.Order{}).Where("id = ? AND status = ?", order.ID, model.OrderStatusPending).Update("status", model.OrderStatusCancelled)
 			c.JSON(http.StatusOK, gin.H{"status": "closed"})
 		default: // WAIT_BUYER_PAY 等
 			c.JSON(http.StatusOK, gin.H{"status": "pending"})

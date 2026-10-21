@@ -3,13 +3,17 @@ import { nextTick, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { showConfirmDialog, showToast } from "vant";
 import http from "../lib/http";
-
-interface OrderItem { productId: number; name: string; price: number; quantity: number; emoji: string; color: string; }
-interface Order { id: number; orderNo: string; status: string; amount: number; receiver: string; phone: string; region: string; detail: string; items: OrderItem[]; createdAt: string; }
+import AftersaleForm from "../components/AftersaleForm.vue";
+import { aftersaleStatuses, canApplyAftersale, orderStatuses as statusMap, type Order } from "../lib/orders";
+import { errMsg } from "../lib/errmsg";
 
 const route = useRoute();
 const order = ref<Order | null>(null);
 const loading = ref(false);
+const aftersaleOrder = ref<Order | null>(null);
+const returnCarrier = ref("");
+const returnTrackingNo = ref("");
+const returning = ref(false);
 
 const AMAP_KEY = import.meta.env.VITE_AMAP_KEY || "";
 const AMAP_SECURITY_KEY = import.meta.env.VITE_AMAP_SECURITY_KEY || "";
@@ -66,21 +70,13 @@ async function renderMap() {
   }
 }
 
-const statusMap: Record<string, { text: string; color: string }> = {
-  pending: { text: "待付款", color: "#ff976a" },
-  paid: { text: "待发货", color: "#7c4dff" },
-  shipped: { text: "待收货", color: "#1989fa" },
-  completed: { text: "待评价", color: "#07c160" },
-  aftersale: { text: "售后", color: "#ee0a24" },
-  finished: { text: "已完成", color: "#969ba5" },
-  cancelled: { text: "已取消", color: "#969ba5" },
-};
-
 async function load() {
   loading.value = true;
   try {
     const res = await http.get("/api/orders/" + route.params.id);
     order.value = res.data;
+    returnCarrier.value = order.value?.returnCarrier || "";
+    returnTrackingNo.value = order.value?.returnTrackingNo || "";
   } catch {
     order.value = null;
   } finally {
@@ -94,7 +90,7 @@ async function changeStatus(status: string, text: string) {
     await http.put("/api/orders/" + order.value.id + "/status", { status });
     showToast(text + "成功");
     load();
-  } catch { /* 忽略 */ }
+  } catch (e) { showToast(errMsg(e, "操作失败")); }
 }
 
 async function cancelOrder() {
@@ -104,11 +100,15 @@ async function cancelOrder() {
   await changeStatus("cancelled", "取消订单");
 }
 
-async function applyAftersale() {
+async function saveReturn() {
+  if (!order.value || returning.value) return;
+  returning.value = true;
   try {
-    await showConfirmDialog({ title: "申请售后", message: "确定申请售后吗？" });
-  } catch { return; }
-  await changeStatus("aftersale", "申请售后");
+    await http.put(`/api/orders/${order.value.id}/return`, { carrier: returnCarrier.value, trackingNo: returnTrackingNo.value });
+    showToast("退货运单已提交");
+    await load();
+  } catch (e) { showToast(errMsg(e, "提交失败")); }
+  finally { returning.value = false; }
 }
 
 onMounted(async () => {
@@ -141,18 +141,38 @@ onMounted(async () => {
       <div v-if="AMAP_KEY && !mapError" ref="mapRef" class="order-map"></div>
       <div v-if="mapError" class="order-map-error">{{ mapError }}</div>
       <van-cell-group inset class="detail-block">
-        <van-cell v-for="item in order.items" :key="item.productId" :title="item.name" :value="'x' + item.quantity + '  ¥' + (item.price * item.quantity).toFixed(2)">
+        <van-cell v-for="item in order.items" :key="item.productId + ':' + item.skuId" :title="item.name" :label="item.specs" :value="'x' + item.quantity + '  ¥' + (item.price * item.quantity).toFixed(2)">
           <template #icon><div class="cart-thumb" :style="{ background: item.color }">{{ item.emoji }}</div></template>
         </van-cell>
         <van-cell title="合计" :value="'¥' + order.amount.toFixed(2)" />
+      </van-cell-group>
+      <van-cell-group v-if="order.trackingNo" inset class="detail-block">
+        <van-cell title="快递公司" :value="order.carrier" />
+        <van-cell title="快递单号" :value="order.trackingNo" />
+        <van-cell title="物流进度" label="以下进度由商家更新" />
+        <van-cell v-for="(event, i) in order.logistics || []" :key="i" :title="event.text" :label="new Date(event.time).toLocaleString()" />
+      </van-cell-group>
+      <van-cell-group v-if="order.aftersaleStatus" inset class="detail-block">
+        <van-cell title="售后进度" :value="aftersaleStatuses[order.aftersaleStatus] || order.aftersaleStatus" />
+        <van-cell title="售后类型" :value="order.aftersaleType === 'return_refund' ? '退货退款' : '仅退款'" />
+        <van-cell title="申请原因" :label="order.aftersaleReason" />
+        <van-cell v-if="order.aftersaleNote" title="商家回复" :label="order.aftersaleNote" />
+        <van-cell v-if="order.returnAddress" title="退货地址" :label="order.returnAddress" />
+        <van-cell v-if="order.refundedAt" title="退款时间" :value="new Date(order.refundedAt).toLocaleString()" />
+        <van-form v-if="order.status === 'aftersale' && order.aftersaleStatus === 'returning'" @submit="saveReturn">
+          <van-field v-model="returnCarrier" label="退货快递" maxlength="64" :rules="[{ required: true, message: '请填写快递公司' }]" />
+          <van-field v-model="returnTrackingNo" label="退货单号" maxlength="128" :rules="[{ required: true, message: '请填写运单号' }]" />
+          <div style="padding:12px"><van-button block type="primary" native-type="submit" :loading="returning">保存退货运单</van-button></div>
+        </van-form>
       </van-cell-group>
       <div class="detail-actions-bar">
         <van-button v-if="order.status === 'pending'" round type="danger" @click="$router.push('/pay/' + order.id)">去支付</van-button>
         <van-button v-if="order.status === 'pending'" round plain type="default" @click="cancelOrder()">取消订单</van-button>
         <van-button v-if="order.status === 'shipped'" round type="primary" @click="changeStatus('completed', '确认收货')">确认收货</van-button>
-        <van-button v-if="order.status === 'paid' || order.status === 'shipped'" round plain type="warning" @click="applyAftersale()">申请售后</van-button>
+        <van-button v-if="canApplyAftersale(order)" round plain type="warning" @click="aftersaleOrder = order">申请售后</van-button>
         <van-button v-if="order.status === 'completed'" round type="success" @click="$router.push('/review/' + order.id)">评价</van-button>
       </div>
     </template>
+    <AftersaleForm :order="aftersaleOrder" @close="aftersaleOrder = null" @submitted="load" />
   </div>
 </template>

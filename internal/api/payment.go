@@ -26,97 +26,76 @@ func markPaid(db *gorm.DB, orderID uint, tradeNo string) error {
 		return fmt.Errorf("支付宝交易号为空")
 	}
 	var order model.Order
-	if err := db.Where("id = ?", orderID).First(&order).Error; err != nil {
-		return err
-	}
-	now := time.Now()
-	// 原子认领：只有把 pending 改成 paid 的那次调用才继续，保证并发幂等。
-	res := db.Model(&model.Order{}).
-		Where("id = ? AND status = ?", orderID, model.OrderStatusPending).
-		Updates(map[string]any{
-			"status":     model.OrderStatusPaid,
-			"trade_no":   tradeNo,
-			"pay_method": "alipay",
-			"paid_at":    &now,
-		})
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return nil // 幂等：别的调用已处理
-	}
-	// 认领成功，扣库存 + 核销券；任一失败则回补已扣并转售后。
-	var deducted []model.OrderItem
-	fail := false
-	for _, it := range order.Items {
-		if it.ProductID == 0 || it.Quantity <= 0 {
-			continue
-		}
-		var r *gorm.DB
-		if it.SkuID > 0 {
-			r = db.Model(&model.ProductSku{}).Where("id = ? AND stock >= ?", it.SkuID, it.Quantity).
-				Update("stock", gorm.Expr("stock - ?", it.Quantity))
-		} else {
-			r = db.Model(&model.Product{}).Where("id = ? AND stock >= ?", it.ProductID, it.Quantity).
-				Update("stock", gorm.Expr("stock - ?", it.Quantity))
-		}
+	err := db.Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		paid := map[string]any{"status": model.OrderStatusPaid, "trade_no": tradeNo, "pay_method": "alipay", "paid_at": &now}
+		// Claim with a write before reading so concurrent notifications serialize on the order.
+		r := tx.Model(&model.Order{}).Where("id = ? AND status = ?", orderID, model.OrderStatusPending).Updates(paid)
 		if r.Error != nil {
 			return r.Error
 		}
 		if r.RowsAffected == 0 {
-			fail = true
-			break
+			// A late payment on a cancelled order must remain visible and refundable.
+			paid["status"] = model.OrderStatusAftersale
+			paid["aftersale_type"] = "refund_only"
+			paid["aftersale_status"] = "requested"
+			paid["aftersale_reason"] = "订单取消后收到支付款项，请原路退款"
+			paid["aftersale_previous_status"] = model.OrderStatusCancelled
+			return tx.Model(&model.Order{}).Where("id = ? AND status = ?", orderID, model.OrderStatusCancelled).Updates(paid).Error
 		}
-		deducted = append(deducted, it)
-	}
-	if !fail && order.UserCouponID > 0 {
-		r := db.Model(&model.UserCoupon{}).
-			Where("id = ? AND user_id = ? AND status = ?", order.UserCouponID, order.UserID, model.UserCouponStatusUnused).
-			Updates(map[string]any{
-				"status":        model.UserCouponStatusUsed,
-				"used_order_no": order.OrderNo,
-				"used_at":       &now,
-			})
-		if r.Error != nil {
-			return r.Error
-		}
-		if r.RowsAffected == 0 {
-			fail = true
-		}
-	}
-	if fail {
-		for _, d := range deducted {
-			if d.SkuID > 0 {
-				db.Model(&model.ProductSku{}).Where("id = ?", d.SkuID).
-					Update("stock", gorm.Expr("stock + ?", d.Quantity))
-			} else {
-				db.Model(&model.Product{}).Where("id = ?", d.ProductID).
-					Update("stock", gorm.Expr("stock + ?", d.Quantity))
-			}
-		}
-		logx.L().Warnf("order %s paid but stock/coupon unavailable", order.OrderNo)
-		return db.Model(&model.Order{}).Where("id = ?", orderID).
-			Update("status", model.OrderStatusAftersale).Error
-	}
-	// 全部成功：累加销量。
-	for _, it := range order.Items {
-		if it.ProductID == 0 || it.Quantity <= 0 {
-			continue
-		}
-		if err := db.Model(&model.Product{}).Where("id = ?", it.ProductID).
-			Update("sales", gorm.Expr("sales + ?", it.Quantity)).Error; err != nil {
+		if err := tx.First(&order, orderID).Error; err != nil {
 			return err
 		}
-	}
-	// 库存/销量已变，失效相关商品缓存（详情 + 列表）。
-	seen := map[int]bool{}
-	for _, it := range order.Items {
-		if it.ProductID > 0 && !seen[it.ProductID] {
-			seen[it.ProductID] = true
+		if err := tx.SavePoint("inventory").Error; err != nil {
+			return err
+		}
+		unavailable := false
+		for _, it := range order.Items {
+			if it.ProductID <= 0 || it.Quantity <= 0 {
+				continue
+			}
+			q := tx.Model(&model.Product{}).Where("id = ? AND stock >= ?", it.ProductID, it.Quantity)
+			if it.SkuID > 0 {
+				q = tx.Model(&model.ProductSku{}).Where("id = ? AND stock >= ?", it.SkuID, it.Quantity)
+			}
+			r := q.Update("stock", gorm.Expr("stock - ?", it.Quantity))
+			if r.Error != nil {
+				return r.Error
+			}
+			if r.RowsAffected == 0 {
+				unavailable = true
+				break
+			}
+		}
+		if !unavailable && order.UserCouponID > 0 {
+			r := tx.Model(&model.UserCoupon{}).Where("id = ? AND user_id = ? AND status = ?", order.UserCouponID, order.UserID, model.UserCouponStatusUnused).
+				Updates(map[string]any{"status": model.UserCouponStatusUsed, "used_order_no": order.OrderNo, "used_at": &now})
+			if r.Error != nil {
+				return r.Error
+			}
+			unavailable = r.RowsAffected == 0
+		}
+		if unavailable {
+			if err := tx.RollbackTo("inventory").Error; err != nil {
+				return err
+			}
+			return tx.Model(&order).Updates(map[string]any{"status": model.OrderStatusAftersale, "aftersale_type": "refund_only", "aftersale_status": "requested", "aftersale_previous_status": model.OrderStatusPending, "aftersale_reason": "支付成功，但库存或优惠券不可用，请原路退款"}).Error
+		}
+		for _, it := range order.Items {
+			if it.ProductID > 0 && it.Quantity > 0 {
+				if err := tx.Model(&model.Product{}).Where("id = ?", it.ProductID).Update("sales", gorm.Expr("sales + ?", it.Quantity)).Error; err != nil {
+					return err
+				}
+			}
+		}
+		return tx.Model(&order).Update("stock_deducted", true).Error
+	})
+	if err == nil {
+		for _, it := range order.Items {
 			invalidateProductCache(it.ProductID)
 		}
 	}
-	return nil
+	return err
 }
 
 // 支付宝交易状态（与 SDK 的 TradeStatus 字符串一一对应）。
