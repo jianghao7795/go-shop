@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { showToast, type SwipeInstance } from "vant";
+import { showToast } from "vant";
 import { useShopCart } from "../stores/shop";
 import { useUserStore } from "../stores/user";
 import http from "../lib/http";
@@ -43,7 +43,6 @@ const loading = ref(false);
 const loadError = ref("");
 const products = ref<Product[]>([]);
 const featured = ref<Product[]>([]);
-const featuredSwipe = ref<SwipeInstance>();
 
 async function loadProducts() {
   loading.value = true;
@@ -153,8 +152,6 @@ onMounted(() => {
             </article>
           </van-swipe-item>
         </van-swipe>
-        <button class="featured-arrow featured-arrow--left" aria-label="上一张" @click="featuredSwipe?.prev()">‹</button>
-        <button class="featured-arrow featured-arrow--right" aria-label="下一张" @click="featuredSwipe?.next()">›</button>
       </div>
 
       <div class="section-heading">
@@ -216,8 +213,12 @@ onMounted(() => {
   cursor: pointer;
   z-index: 1;
 }
-.featured-arrow--left { left: 14px; }
-.featured-arrow--right { right: 14px; }
+.featured-arrow--left {
+  left: 14px;
+}
+.featured-arrow--right {
+  right: 14px;
+}
 .featured-card {
   overflow: hidden;
   border-radius: 12px;
