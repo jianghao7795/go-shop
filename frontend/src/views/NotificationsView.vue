@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { showConfirmDialog, showToast } from "vant";
+import { Dialog as VanDialog, showConfirmDialog, showToast } from "vant";
 import { useNotificationStore } from "../stores/notification";
 
 const store = useNotificationStore();
@@ -13,6 +13,7 @@ const showDetail = ref(false);
 const typeEmoji: Record<string, string> = {
   order: "📦",
   coupon: "🎟️",
+  support: "💬",
 };
 
 const filteredItems = computed(() => {
@@ -56,6 +57,7 @@ onMounted(load);
       <van-tab title="全部" name="" />
       <van-tab title="订单" name="order" />
       <van-tab title="优惠券" name="coupon" />
+      <van-tab title="客服" name="support" />
     </van-tabs>
     <div class="notify-toolbar">
       <van-checkbox v-model="onlyUnread">只看未读</van-checkbox>
@@ -91,6 +93,7 @@ onMounted(load);
       <div class="notify-detail">
         <div class="notify-detail-meta">{{ typeEmoji[detail?.type] || "🔔" }} {{ detail?.createdAt?.slice(5, 16).replace("T", " ") }}</div>
         <p>{{ detail?.content }}</p>
+        <van-button v-if="detail?.type === 'support'" size="small" type="primary" to="/service">查看客服咨询</van-button>
       </div>
     </van-dialog>
   </div>

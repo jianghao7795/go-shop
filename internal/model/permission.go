@@ -35,4 +35,5 @@ var SeedPermissions = []Permission{
 	{Code: "coupon:manage", Name: "优惠券管理", Path: "/admin/coupons"},
 	{Code: "notification:manage", Name: "通知管理", Path: "/admin/notifications"},
 	{Code: "review:manage", Name: "评价管理", Path: "/admin/reviews"},
+	{Code: "support:manage", Name: "客服管理", Path: "/admin/support"},
 }

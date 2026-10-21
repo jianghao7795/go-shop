@@ -27,7 +27,7 @@ func Start() {
 	} else if migrateErr := migratePricesToCents(db); migrateErr != nil {
 		logx.L().Errorf("data migration failed: %v", migrateErr)
 		databaseReady = false
-	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}, &model.Coupon{}, &model.Role{}, &model.UserRole{}, &model.Permission{}, &model.RolePermission{}, &model.Review{}, &model.UserCoupon{}, &model.CartItem{}, &model.ProductSku{}); migrateErr != nil {
+	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}, &model.Coupon{}, &model.Role{}, &model.UserRole{}, &model.Permission{}, &model.RolePermission{}, &model.Review{}, &model.UserCoupon{}, &model.CartItem{}, &model.ProductSku{}, &model.SupportTicket{}, &model.SupportMessage{}); migrateErr != nil {
 		logx.L().Errorf("mysql migration failed: %v", migrateErr)
 		databaseReady = false
 	} else {
@@ -142,6 +142,10 @@ func Start() {
 	protected := router.Group("/api")
 	protected.Use(jwtMiddleware.MiddlewareFunc())
 	protected.GET("/me", meHandler(db))
+	protected.GET("/support", listSupport(db, false))
+	protected.POST("/support", createSupport(db))
+	protected.GET("/support/:id", supportTicket(db, false))
+	protected.POST("/support/:id/messages", replySupport(db, hub, false))
 	protected.PUT("/profile", updateProfile(db))
 	protected.POST("/profile/avatar", uploadAvatar())
 	protected.GET("/addresses", listAddresses(db))
@@ -172,6 +176,9 @@ func Start() {
 
 	admin := router.Group("/api/admin")
 	admin.Use(jwtMiddleware.MiddlewareFunc())
+	admin.GET("/support", requirePermission(db, "support:manage"), listSupport(db, true))
+	admin.GET("/support/:id", requirePermission(db, "support:manage"), supportTicket(db, true))
+	admin.POST("/support/:id/messages", requirePermission(db, "support:manage"), replySupport(db, hub, true))
 	// 用户
 	admin.GET("/users", requirePermission(db, "user:manage"), adminListUsers(db))
 	admin.PUT("/users/:id/status", requirePermission(db, "user:manage"), adminUpdateUserStatus(db))

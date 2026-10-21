@@ -9,6 +9,7 @@ export const adminMenu: AdminMenuItem[] = [
   { title: "商品", path: "/admin/products", perm: "product:manage" },
   { title: "分类", path: "/admin/categories", perm: "category:manage" },
   { title: "订单", path: "/admin/orders", perm: "order:manage" },
+  { title: "客服", path: "/admin/support", perm: "support:manage" },
   { title: "用户", path: "/admin/users", perm: "user:manage" },
   { title: "优惠券", path: "/admin/coupons", perm: "coupon:manage" },
   { title: "通知", path: "/admin/notifications", perm: "notification:manage" },

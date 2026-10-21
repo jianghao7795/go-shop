@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -215,6 +216,47 @@ func TestOrderLifecycleMigrationIsRepeatable(t *testing.T) {
 	if !old.StockDeducted || old.LifecycleVersion != 1 || newOrder.PaymentStarted {
 		t.Fatalf("bad migration: %+v %+v", old, newOrder)
 	}
+}
+
+func TestOrderAndSupportOwnership(t *testing.T) {
+	db := newTestDB(t)
+	hub := newNotificationHub()
+	o := model.Order{OrderNo: "other", UserID: "another-user", Status: model.OrderStatusPaid}
+	db.Create(&o)
+	requireStatus(t, lifecycleRequest(t, applyAftersale(db, hub), o.ID, `{"type":"refund_only","reason":"申请退款"}`), 404)
+	ticket := model.SupportTicket{UserID: "another-user", Subject: "私人咨询", Status: "open"}
+	db.Create(&ticket)
+	requireStatus(t, lifecycleRequest(t, supportTicket(db, false), ticket.ID, `{}`), 404)
+	requireStatus(t, lifecycleRequest(t, replySupport(db, hub, false), ticket.ID, `{"content":"不能越权回复"}`), 404)
+	var count int64
+	db.Model(&model.SupportMessage{}).Count(&count)
+	if count != 0 {
+		t.Fatal("unauthorized message stored")
+	}
+}
+
+func TestSupportConversationAndNotification(t *testing.T) {
+	db := newTestDB(t)
+	hub := newNotificationHub()
+	w := lifecycleRequest(t, createSupport(db), 0, `{"subject":"询问发货","content":"订单何时发货？"}`)
+	requireStatus(t, w, 200)
+	var ticket model.SupportTicket
+	if err := json.Unmarshal(w.Body.Bytes(), &ticket); err != nil {
+		t.Fatal(err)
+	}
+	requireStatus(t, lifecycleRequest(t, replySupport(db, hub, true), ticket.ID, `{"content":"今日安排发货"}`), 200)
+	w = lifecycleRequest(t, supportTicket(db, false), ticket.ID, `{}`)
+	requireStatus(t, w, 200)
+	if !strings.Contains(w.Body.String(), "今日安排发货") {
+		t.Fatal("reply not readable")
+	}
+	var count int64
+	db.Model(&model.Notification{}).Where("type = ?", model.NotificationTypeSupport).Count(&count)
+	if count != 1 {
+		t.Fatal("missing reply notification")
+	}
+	requireStatus(t, lifecycleRequest(t, replySupport(db, hub, false), ticket.ID, `{"close":true}`), 200)
+	requireStatus(t, lifecycleRequest(t, replySupport(db, hub, true), ticket.ID, `{"content":"不能回复已关闭咨询"}`), 400)
 }
 
 func TestAdminCannotForgePaidState(t *testing.T) {

@@ -8,8 +8,9 @@ import (
 
 // 通知类型。
 const (
-	NotificationTypeOrder  = "order"  // 订单变动
-	NotificationTypeCoupon = "coupon" // 优惠券
+	NotificationTypeOrder   = "order"   // 订单变动
+	NotificationTypeCoupon  = "coupon"  // 优惠券
+	NotificationTypeSupport = "support" // 客服回复
 )
 
 // Notification 是推送给用户的站内通知。
