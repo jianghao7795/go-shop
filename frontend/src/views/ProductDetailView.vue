@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 import { Rate, showToast } from "vant";
@@ -15,6 +15,9 @@ const { add } = shopCart;
 const product = ref<ShopProduct | null>(null);
 const quantity = ref(1);
 const selectedSkuId = ref(0);
+const selectedSku = computed(() => product.value?.skus?.find(s => s.id === selectedSkuId.value));
+const currentStock = computed(() => selectedSku.value?.stock ?? (product.value?.skus?.length ? 0 : product.value?.stock ?? 0));
+watch(currentStock, stock => { quantity.value = Math.max(1, Math.min(quantity.value, stock)); });
 
 const currentPrice = computed(() => {
   if (!product.value) return 0;
@@ -40,18 +43,23 @@ async function loadProduct() {
   }
 }
 
-function addToCart() {
-  if (!product.value) return;
+function addToCart(): boolean {
+  if (!product.value) return false;
+  if (product.value.skus?.length && !selectedSku.value) { showToast("请先选择商品规格"); return false; }
+  if (quantity.value > currentStock.value || currentStock.value <= 0) { showToast("当前规格库存不足"); return false; }
   const sku = product.value.skus?.find((s) => s.id === selectedSkuId.value);
   const price = sku ? sku.price : product.value.price;
   for (let i = 0; i < quantity.value; i += 1) add(product.value, selectedSkuId.value, sku?.specs || "", price);
   showToast("已加入购物车");
+  return true;
 }
 
 function buyNow() {
   if (!product.value) return;
-  addToCart();
-  router.push("/cart");
+  if (!addToCart()) return;
+  shopCart.setAllChecked(false);
+  shopCart.toggleChecked(product.value.id + ":" + selectedSkuId.value);
+  router.push("/checkout");
 }
 
 async function loadReviews() {
@@ -85,26 +93,28 @@ onMounted(() => {
         <div class="detail-tags"><span>自营</span><span>极速发货</span><span>7天无理由</span></div>
         <van-cell-group inset class="detail-info">
           <van-cell title="已售" :value="product.sales + ' 件'" />
-          <van-cell title="配送" value="预计明日送达" is-link />
-          <van-cell title="服务" value="正品保障 · 破损包退" is-link />
+          <van-cell title="配送" value="发货后可在订单中查看物流" />
+          <van-cell title="服务" value="联系商家咨询售后" is-link to="/service" />
         </van-cell-group>
         <van-cell-group v-if="product.skus && product.skus.length" inset class="detail-sku">
           <van-cell title="规格">
             <template #value>
               <div class="sku-options">
-                <span
+                <button
                   v-for="sku in product.skus"
                   :key="sku.id"
                   class="sku-option"
                   :class="{ active: selectedSkuId === sku.id }"
+                  :disabled="sku.stock <= 0"
                   @click="selectedSkuId = sku.id"
-                >{{ sku.specs }}</span>
+                >{{ sku.specs }}{{ sku.stock <= 0 ? '（售罄）' : '' }}</button>
               </div>
             </template>
           </van-cell>
         </van-cell-group>
         <van-cell-group inset class="detail-quantity">
-          <van-cell title="购买数量"><template #value><van-stepper v-model="quantity" min="1" /></template></van-cell>
+          <van-cell title="库存" :value="product.skus?.length && !selectedSku ? '请选择规格' : currentStock + ' 件'" />
+          <van-cell title="购买数量"><template #value><van-stepper v-model="quantity" min="1" :max="Math.max(1, currentStock)" :disabled="currentStock <= 0" /></template></van-cell>
         </van-cell-group>
       </section>
       <section class="detail-reviews">

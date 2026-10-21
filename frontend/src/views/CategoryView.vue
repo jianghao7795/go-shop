@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { showToast } from "vant";
 import { useShopCart } from "../stores/shop";
 import http from "../lib/http";
@@ -24,6 +25,7 @@ interface Product {
 }
 
 const categories = ref<Category[]>([]);
+const router = useRouter();
 const active = ref(0);
 const products = ref<Product[]>([]);
 const loading = ref(false);
@@ -53,9 +55,13 @@ async function loadProducts() {
   }
 }
 
-function addToCart(product: Product) {
-  addToCartItem(product);
-  showToast(`${product.name} 已加入购物车`);
+async function addToCart(product: Product) {
+  try {
+    const { data } = await http.get("/api/products/" + product.id);
+    if (data.skus?.length) { router.push("/product/" + product.id); showToast("请选择商品规格"); return; }
+    if (data.stock <= 0) { showToast("商品已售罄"); return; }
+    addToCartItem(data);
+  } catch { showToast("读取商品失败，请稍后重试"); }
 }
 
 watch(active, loadProducts);

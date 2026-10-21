@@ -15,6 +15,7 @@ export interface ShopProduct {
   id: number; name: string; description: string; detail?: string; price: number; originalPrice: number;
   sales: number; emoji: string; color: string; category: string;
   skus?: ShopSku[];
+  stock?: number;
 }
 interface CartLine { product: ShopProduct; skuId: number; specs: string; quantity: number; checked: boolean }
 

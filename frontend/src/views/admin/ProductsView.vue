@@ -51,6 +51,8 @@ const editingId = ref<number | null>(null);
 const detailEditor = ref<{ getHtml: () => string }>();
 const skus = ref<any[]>([]);
 const newSku = reactive({ specs: "", price: "", stock: "" });
+const editingSku = ref(0);
+const skuSaving = ref(false);
 
 const form = reactive({
   name: "",
@@ -112,6 +114,8 @@ async function loadCategories() {
 function openCreate() {
   editingId.value = null;
   skus.value = [];
+  editingSku.value = 0;
+  Object.assign(newSku, { specs: "", price: "", stock: "" });
   Object.assign(form, {
     name: "",
     description: "",
@@ -130,29 +134,41 @@ function openCreate() {
 
 async function loadSkus(productId: number) {
   try {
-    const res = await http.get("/api/products/" + productId);
-    skus.value = res.data.skus || [];
+    const res = await http.get("/api/admin/products/" + productId + "/skus");
+    if (editingId.value !== productId) return;
+    skus.value = res.data || [];
+    editingSku.value = 0;
+    Object.assign(newSku, { specs: "", price: "", stock: "" });
   } catch {
     skus.value = [];
   }
 }
 
 async function addSku() {
-  if (!editingId.value) return;
+  if (!editingId.value || skuSaving.value) return;
+  if (!newSku.specs.trim() || newSku.price === "" || newSku.stock === "" || !Number.isInteger(Number(newSku.stock))) { showToast("请填写规格、价格和整数库存"); return; }
+  skuSaving.value = true;
   try {
-    await http.post("/api/admin/products/" + editingId.value + "/skus", {
+    const payload = {
       specs: newSku.specs,
       price: Number(newSku.price) || 0,
       stock: Number(newSku.stock) || 0,
-    });
-    showToast("已添加");
+    };
+    if (editingSku.value) await http.put("/api/admin/skus/" + editingSku.value, payload);
+    else await http.post("/api/admin/products/" + editingId.value + "/skus", payload);
+    showToast(editingSku.value ? "规格已更新" : "已添加");
     newSku.specs = "";
     newSku.price = "";
     newSku.stock = "";
-    loadSkus(editingId.value);
+    await loadSkus(editingId.value);
   } catch (err) {
     showToast(errMsg(err, "添加失败"));
-  }
+  } finally { skuSaving.value = false; }
+}
+
+function editSku(sku: any) {
+  editingSku.value = sku.id;
+  Object.assign(newSku, { specs: sku.specs, price: String(sku.price), stock: String(sku.stock) });
 }
 
 async function deleteSku(sku: any) {
@@ -168,6 +184,9 @@ async function deleteSku(sku: any) {
 
 function openEdit(p: Product) {
   editingId.value = p.id;
+  skus.value = [];
+  editingSku.value = 0;
+  Object.assign(newSku, { specs: "", price: "", stock: "" });
   Object.assign(form, {
     name: p.name,
     description: p.description,
@@ -380,13 +399,15 @@ onMounted(() => {
           <div class="sku-editor-title">规格管理（多规格独立价格/库存）</div>
           <div v-for="sku in skus" :key="sku.id" class="sku-row">
             <span>{{ sku.specs }} · ¥{{ sku.price }} · 库存 {{ sku.stock }}</span>
+            <van-button size="mini" plain @click="editSku(sku)">编辑</van-button>
             <van-button size="mini" type="danger" plain @click="deleteSku(sku)">删除</van-button>
           </div>
           <div class="sku-add">
             <van-field v-model="newSku.specs" label="规格" placeholder="如 红色 / M" />
             <van-field v-model="newSku.price" label="价格" type="number" placeholder="元" />
             <van-field v-model="newSku.stock" label="库存" type="number" placeholder="数量" />
-            <van-button size="small" type="primary" plain @click="addSku">添加规格</van-button>
+            <van-button size="small" type="primary" plain :loading="skuSaving" @click="addSku">{{ editingSku ? '保存规格' : '添加规格' }}</van-button>
+            <van-button v-if="editingSku" size="small" plain @click="editingSku = 0; Object.assign(newSku, { specs: '', price: '', stock: '' })">取消编辑</van-button>
           </div>
         </div>
         <div class="form-actions">

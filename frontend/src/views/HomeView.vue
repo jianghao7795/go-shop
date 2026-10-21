@@ -74,9 +74,22 @@ async function loadFeatured() {
   }
 }
 
-function addToCart(product: Product) {
-  addToCartItem(product);
-  showToast(`${product.name} 已加入购物车`);
+async function addToCart(product: Product) {
+  try {
+    const { data } = await http.get("/api/products/" + product.id);
+    if (data.skus?.length) {
+      router.push("/product/" + product.id);
+      showToast("请选择商品规格");
+      return;
+    }
+    if (data.stock <= 0) {
+      showToast("商品已售罄");
+      return;
+    }
+    addToCartItem(data);
+  } catch {
+    showToast("读取商品失败，请稍后重试");
+  }
 }
 
 function selectCategory(value: string) {

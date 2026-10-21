@@ -204,6 +204,8 @@ func Start() {
 	admin.PUT("/products/:id/featured", requirePermission(db, "product:manage"), adminToggleFeatured(db))
 	admin.POST("/products/:id/skus", requirePermission(db, "product:manage"), adminCreateSku(db))
 	admin.DELETE("/skus/:id", requirePermission(db, "product:manage"), adminDeleteSku(db))
+	admin.PUT("/skus/:id", requirePermission(db, "product:manage"), adminUpdateSku(db))
+	admin.GET("/products/:id/skus", requirePermission(db, "product:manage"), adminListSkus(db))
 	// 分类
 	admin.GET("/categories", requirePermission(db, "category:manage"), adminListCategories(db))
 	admin.POST("/categories", requirePermission(db, "category:manage"), adminCreateCategory(db))
