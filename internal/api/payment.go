@@ -3,10 +3,13 @@ package api
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
+	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -109,13 +112,14 @@ const (
 // alipayPayer 抽象支付宝当面付操作，便于测试注入 mock。
 type alipayPayer interface {
 	PreCreate(ctx context.Context, outTradeNo, totalAmount, subject string) (qrCode string, err error)
-	Query(ctx context.Context, outTradeNo string) (status, tradeNo string, err error)
+	Query(ctx context.Context, outTradeNo string) (status, tradeNo, totalAmount string, err error)
 	DecodeNotify(ctx context.Context, values url.Values) (status, tradeNo, outTradeNo, totalAmount string, err error)
 }
 
 // alipaySDK 是 alipayPayer 的 SDK 实现，包装 *alipay.Client。
 type alipaySDK struct {
 	client    *alipay.Client
+	appID     string
 	notifyURL string
 
 	mu      sync.Mutex
@@ -169,16 +173,22 @@ func buildPrecreate(outTradeNo, totalAmount, subject, notifyURL string) alipay.T
 	return p
 }
 
-func (a *alipaySDK) Query(ctx context.Context, outTradeNo string) (string, string, error) {
+func (a *alipaySDK) Query(ctx context.Context, outTradeNo string) (string, string, string, error) {
 	q := alipay.TradeQuery{OutTradeNo: outTradeNo}
 	rsp, err := a.client.TradeQuery(ctx, q)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	if !rsp.Code.IsSuccess() {
-		return "", "", fmt.Errorf("支付宝查询失败: %s", rsp.SubMsg)
+		if rsp.SubCode == "ACQ.TRADE_NOT_EXIST" {
+			return alipayStatusWaitBuyerPay, "", "", nil
+		}
+		return "", "", "", fmt.Errorf("支付宝查询失败: %s", rsp.SubMsg)
 	}
-	return string(rsp.TradeStatus), rsp.TradeNo, nil
+	if rsp.OutTradeNo != outTradeNo {
+		return "", "", "", fmt.Errorf("支付宝查询订单号不匹配")
+	}
+	return string(rsp.TradeStatus), rsp.TradeNo, rsp.TotalAmount, nil
 }
 
 func (a *alipaySDK) DecodeNotify(ctx context.Context, values url.Values) (string, string, string, string, error) {
@@ -186,35 +196,18 @@ func (a *alipaySDK) DecodeNotify(ctx context.Context, values url.Values) (string
 	if err != nil {
 		return "", "", "", "", err
 	}
+	if noti.AppId != a.appID {
+		return "", "", "", "", fmt.Errorf("支付宝回调应用不匹配")
+	}
 	return string(noti.TradeStatus), noti.TradeNo, noti.OutTradeNo, noti.TotalAmount, nil
-}
-
-// alipayConfig 是从环境变量读到的支付宝配置。
-type alipayConfig struct {
-	appID      string
-	privateKey string
-	publicKey  string
-	production bool
-	notifyURL  string
-}
-
-func loadAlipayConfig() (alipayConfig, bool) {
-	cfg := alipayConfig{
-		appID:      os.Getenv("ALIPAY_APP_ID"),
-		privateKey: os.Getenv("ALIPAY_PRIVATE_KEY"),
-		publicKey:  os.Getenv("ALIPAY_PUBLIC_KEY"),
-		production: os.Getenv("ALIPAY_PRODUCTION") == "true",
-		notifyURL:  os.Getenv("ALIPAY_NOTIFY_URL"),
-	}
-	if cfg.appID == "" || cfg.privateKey == "" || cfg.publicKey == "" {
-		return alipayConfig{}, false
-	}
-	return cfg, true
 }
 
 // newAlipayPayer 构建支付宝客户端；未配置时返回 (nil, nil)，配置错误返回 (nil, err)。
 func newAlipayPayer() (alipayPayer, error) {
-	cfg, ok := loadAlipayConfig()
+	cfg, ok, err := loadAlipayConfig()
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return nil, nil
 	}
@@ -225,7 +218,30 @@ func newAlipayPayer() (alipayPayer, error) {
 	if err := client.LoadAliPayPublicKey(cfg.publicKey); err != nil {
 		return nil, err
 	}
-	return &alipaySDK{client: client, notifyURL: cfg.notifyURL, qrCache: make(map[string]string)}, nil
+	return &alipaySDK{client: client, appID: cfg.appID, notifyURL: cfg.notifyURL, qrCache: make(map[string]string)}, nil
+}
+
+var alipayAmountPattern = regexp.MustCompile(`^[0-9]{1,9}(\.[0-9]{1,2})?$`)
+
+// Compare integer cents, allowing equivalent gateway formats such as 19.9 and 19.90.
+func alipayAmountMatches(amount string, expected model.Price) bool {
+	if !alipayAmountPattern.MatchString(amount) {
+		return false
+	}
+	parts := strings.SplitN(amount, ".", 2)
+	yuan, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return false
+	}
+	var cents int64
+	if len(parts) == 2 {
+		fraction := parts[1]
+		if len(fraction) == 1 {
+			fraction += "0"
+		}
+		cents, _ = strconv.ParseInt(fraction, 10, 64)
+	}
+	return model.Price(yuan*100+cents) == expected
 }
 
 // alipayHTTPClient 返回带超时的 HTTP 客户端，避免支付接口无限阻塞。
@@ -253,7 +269,10 @@ func handleAlipayNotify(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
 			c.String(http.StatusInternalServerError, "failure")
 			return
 		}
-		_ = c.Request.ParseForm()
+		if err := c.Request.ParseForm(); err != nil {
+			c.String(http.StatusBadRequest, "failure")
+			return
+		}
 		status, tradeNo, outTradeNo, totalAmount, err := payer.DecodeNotify(c.Request.Context(), c.Request.Form)
 		if err != nil {
 			c.String(http.StatusBadRequest, "failure")
@@ -261,16 +280,23 @@ func handleAlipayNotify(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
 		}
 		if status == alipayStatusSuccess || status == alipayStatusFinished {
 			var order model.Order
-			if db.Where("order_no = ?", outTradeNo).First(&order).Error == nil {
-				if totalAmount != "" && totalAmount != order.Amount.YuanString() {
-					logx.L().Errorf("alipay notify amount mismatch: order %s notify %s want %s", order.OrderNo, totalAmount, order.Amount.YuanString())
-					c.String(http.StatusOK, "success")
-					return
-				}
-				if err := markPaid(db, order.ID, tradeNo); err != nil {
-					c.String(http.StatusInternalServerError, "failure")
-					return
-				}
+			err := db.Where("order_no = ?", outTradeNo).First(&order).Error
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.String(http.StatusNotFound, "failure")
+				return
+			}
+			if err != nil {
+				c.String(http.StatusInternalServerError, "failure")
+				return
+			}
+			if !alipayAmountMatches(totalAmount, order.Amount) {
+				logx.L().Errorf("alipay notify amount mismatch: order %s notify %s want %s", order.OrderNo, totalAmount, order.Amount.YuanString())
+				c.String(http.StatusBadRequest, "failure")
+				return
+			}
+			if err := markPaid(db, order.ID, tradeNo); err != nil {
+				c.String(http.StatusInternalServerError, "failure")
+				return
 			}
 		}
 		c.String(http.StatusOK, "success")

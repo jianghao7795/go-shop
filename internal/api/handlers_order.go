@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -340,10 +341,24 @@ func payOrder(db *gorm.DB, payer alipayPayer, payDisabled string) gin.HandlerFun
 			c.JSON(400, gin.H{"message": "订单已超过付款期限，请重新下单"})
 			return
 		}
+		// Persist the attempt before contacting the gateway. A remote precreate may
+		// succeed even if its response times out; reconciliation must still check it.
+		attempt := db.Model(&model.Order{}).Where("id = ? AND status = ?", order.ID, model.OrderStatusPending).Update("payment_started", true)
+		if attempt.Error != nil {
+			c.JSON(500, gin.H{"message": "支付请求保存失败，请重试"})
+			return
+		}
+		if attempt.RowsAffected == 0 {
+			c.JSON(409, gin.H{"message": "订单状态已变化，请刷新"})
+			return
+		}
 		var qrCode string
 		_, err = changeOrder(db, order.ID, nil, func(tx *gorm.DB, o *model.Order) error {
 			if o.Status != model.OrderStatusPending {
 				return fmt.Errorf("订单状态不可支付")
+			}
+			if time.Since(o.CreatedAt) >= paymentWindow {
+				return fmt.Errorf("订单已超过付款期限")
 			}
 			var err error
 			qrCode, err = payer.PreCreate(c.Request.Context(), o.OrderNo, o.Amount.YuanString(), "订单 "+o.OrderNo)
@@ -362,7 +377,7 @@ func payOrder(db *gorm.DB, payer alipayPayer, payDisabled string) gin.HandlerFun
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "二维码生成失败"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"qrImage": qrImage, "orderNo": order.OrderNo, "amount": order.Amount})
+		c.JSON(http.StatusOK, gin.H{"qrImage": qrImage, "orderNo": order.OrderNo, "amount": order.Amount, "expiresAt": order.CreatedAt.Add(paymentWindow), "serverTime": time.Now()})
 	}
 }
 
@@ -382,41 +397,15 @@ func payOrderStatus(db *gorm.DB, payer alipayPayer) gin.HandlerFunc {
 			c.JSON(http.StatusNotFound, gin.H{"message": "订单不存在"})
 			return
 		}
-		if order.Status == model.OrderStatusCancelled {
-			c.JSON(http.StatusOK, gin.H{"status": "closed"})
-			return
-		}
-		if order.Status == model.OrderStatusRefunded {
-			c.JSON(http.StatusOK, gin.H{"status": "refunded"})
-			return
-		}
-		if order.Status != model.OrderStatusPending {
-			// 非待付款（已支付/已发货/售后/已完成等）视为支付流程已结束。
-			c.JSON(http.StatusOK, gin.H{"status": "paid"})
-			return
-		}
-		if payer == nil {
-			c.JSON(http.StatusOK, gin.H{"status": "pending"})
-			return
-		}
-		status, tradeNo, err := payer.Query(c.Request.Context(), order.OrderNo)
-		if err != nil {
-			logx.L().Errorf("alipay query failed: order %s: %v", order.OrderNo, err)
-			c.JSON(http.StatusBadGateway, gin.H{"message": "支付状态查询失败，请稍后重试"})
-			return
-		}
-		switch status {
-		case alipayStatusSuccess, alipayStatusFinished:
-			if err := markPaid(db, order.ID, tradeNo); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"message": "支付确认失败"})
-				return
+		if err := syncOrderPayment(c.Request.Context(), db, payer, &order); err != nil {
+			logx.L().Errorf("alipay sync failed: order %s: %v", order.OrderNo, err)
+			if errors.Is(err, errPaymentQuery) {
+				c.JSON(http.StatusBadGateway, gin.H{"message": "支付状态查询失败，请稍后重试"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "支付确认失败，请稍后重试"})
 			}
-			c.JSON(http.StatusOK, gin.H{"status": "paid"})
-		case alipayStatusClosed:
-			db.Model(&model.Order{}).Where("id = ? AND status = ?", order.ID, model.OrderStatusPending).Update("status", model.OrderStatusCancelled)
-			c.JSON(http.StatusOK, gin.H{"status": "closed"})
-		default: // WAIT_BUYER_PAY 等
-			c.JSON(http.StatusOK, gin.H{"status": "pending"})
+			return
 		}
+		c.JSON(http.StatusOK, paymentStatusResponse(order))
 	}
 }

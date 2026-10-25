@@ -132,7 +132,7 @@ func cancelPendingOrder(ctx context.Context, db *gorm.DB, payer alipayPayer, id 
 		return nil
 	})
 	if err != nil && o.Status == model.OrderStatusPending && payer != nil {
-		if status, tradeNo, queryErr := payer.Query(ctx, o.OrderNo); queryErr == nil && (status == alipayStatusSuccess || status == alipayStatusFinished) {
+		if status, tradeNo, amount, queryErr := payer.Query(ctx, o.OrderNo); queryErr == nil && (status == alipayStatusSuccess || status == alipayStatusFinished) && alipayAmountMatches(amount, o.Amount) {
 			if paidErr := markPaid(db, id, tradeNo); paidErr != nil {
 				return o, paidErr
 			}
@@ -146,22 +146,16 @@ func startOrderExpiry(db *gorm.DB, payer alipayPayer, hub *notificationHub) {
 	if db == nil {
 		return
 	}
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
+	var cursor uint
 	for range ticker.C {
-		var orders []model.Order
-		if db.Where("status = ? AND created_at < ?", model.OrderStatusPending, time.Now().Add(-paymentWindow)).Limit(100).Find(&orders).Error != nil {
-			continue
-		}
-		for _, o := range orders {
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			_, err := cancelPendingOrder(ctx, db, payer, o.ID, nil)
-			cancel()
-			if err != nil {
-				logx.L().Warnf("expire order %s: %v", o.OrderNo, err)
-				continue
-			}
-			notify(db, hub, o.UserID, model.NotificationTypeOrder, "订单已关闭", "订单 "+o.OrderNo+" 超过付款时间，已关闭", o.OrderNo)
+		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+		next, err := processPaymentBatch(ctx, db, payer, hub, cursor, time.Now())
+		cancel()
+		cursor = next
+		if err != nil {
+			logx.L().Warnf("payment reconciliation: %v", err)
 		}
 	}
 }

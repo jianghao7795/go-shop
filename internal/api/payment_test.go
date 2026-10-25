@@ -249,7 +249,7 @@ func TestLoadAlipayConfigUnset(t *testing.T) {
 	t.Setenv("ALIPAY_APP_ID", "")
 	t.Setenv("ALIPAY_PRIVATE_KEY", "")
 	t.Setenv("ALIPAY_PUBLIC_KEY", "")
-	if _, ok := loadAlipayConfig(); ok {
+	if _, ok, err := loadAlipayConfig(); err != nil || ok {
 		t.Fatal("expected unconfigured")
 	}
 }
@@ -260,8 +260,8 @@ func TestLoadAlipayConfigSet(t *testing.T) {
 	t.Setenv("ALIPAY_PUBLIC_KEY", "pub")
 	t.Setenv("ALIPAY_PRODUCTION", "true")
 	t.Setenv("ALIPAY_NOTIFY_URL", "https://example.com/notify")
-	cfg, ok := loadAlipayConfig()
-	if !ok {
+	cfg, ok, err := loadAlipayConfig()
+	if err != nil || !ok {
 		t.Fatal("expected configured")
 	}
 	if cfg.appID != "app-1" || cfg.privateKey != "pk" || cfg.publicKey != "pub" || !cfg.production || cfg.notifyURL != "https://example.com/notify" {
@@ -293,7 +293,7 @@ func TestNewAlipayPayerInvalidKey(t *testing.T) {
 
 type mockPayer struct {
 	preCreate func(ctx context.Context, outTradeNo, totalAmount, subject string) (string, error)
-	query     func(ctx context.Context, outTradeNo string) (string, string, error)
+	query     func(ctx context.Context, outTradeNo string) (string, string, string, error)
 	decode    func(ctx context.Context, values url.Values) (string, string, string, string, error)
 }
 
@@ -303,9 +303,9 @@ func (m *mockPayer) PreCreate(ctx context.Context, o, a, s string) (string, erro
 	}
 	return m.preCreate(ctx, o, a, s)
 }
-func (m *mockPayer) Query(ctx context.Context, o string) (string, string, error) {
+func (m *mockPayer) Query(ctx context.Context, o string) (string, string, string, error) {
 	if m.query == nil {
-		return "", "", fmt.Errorf("unexpected Query")
+		return "", "", "", fmt.Errorf("unexpected Query")
 	}
 	return m.query(ctx, o)
 }
@@ -480,8 +480,8 @@ func TestPayOrderStatusQuerySuccess(t *testing.T) {
 	db := newTestDB(t)
 	order := model.Order{OrderNo: "O200", UserID: "", Status: model.OrderStatusPending}
 	db.Create(&order)
-	payer := &mockPayer{query: func(ctx context.Context, o string) (string, string, error) {
-		return "TRADE_SUCCESS", "trade-200", nil
+	payer := &mockPayer{query: func(ctx context.Context, o string) (string, string, string, error) {
+		return "TRADE_SUCCESS", "trade-200", "0.00", nil
 	}}
 	c, w := payStatusCtx(t, order.ID)
 	payOrderStatus(db, payer)(c)
@@ -500,8 +500,8 @@ func TestPayOrderStatusWaitBuyer(t *testing.T) {
 	db := newTestDB(t)
 	order := model.Order{OrderNo: "O201", UserID: "", Status: model.OrderStatusPending}
 	db.Create(&order)
-	payer := &mockPayer{query: func(ctx context.Context, o string) (string, string, error) {
-		return "WAIT_BUYER_PAY", "", nil
+	payer := &mockPayer{query: func(ctx context.Context, o string) (string, string, string, error) {
+		return "WAIT_BUYER_PAY", "", "", nil
 	}}
 	c, w := payStatusCtx(t, order.ID)
 	payOrderStatus(db, payer)(c)
@@ -514,8 +514,8 @@ func TestPayOrderStatusClosed(t *testing.T) {
 	db := newTestDB(t)
 	order := model.Order{OrderNo: "O202", UserID: "", Status: model.OrderStatusPending}
 	db.Create(&order)
-	payer := &mockPayer{query: func(ctx context.Context, o string) (string, string, error) {
-		return "TRADE_CLOSED", "", nil
+	payer := &mockPayer{query: func(ctx context.Context, o string) (string, string, string, error) {
+		return "TRADE_CLOSED", "", "", nil
 	}}
 	c, w := payStatusCtx(t, order.ID)
 	payOrderStatus(db, payer)(c)
@@ -528,8 +528,8 @@ func TestPayOrderStatusQueryErrorGeneric(t *testing.T) {
 	db := newTestDB(t)
 	order := model.Order{OrderNo: "O206", UserID: "", Status: model.OrderStatusPending}
 	db.Create(&order)
-	payer := &mockPayer{query: func(ctx context.Context, o string) (string, string, error) {
-		return "", "", fmt.Errorf("alipay raw secret detail")
+	payer := &mockPayer{query: func(ctx context.Context, o string) (string, string, string, error) {
+		return "", "", "", fmt.Errorf("alipay raw secret detail")
 	}}
 	c, w := payStatusCtx(t, order.ID)
 	payOrderStatus(db, payer)(c)
@@ -647,8 +647,8 @@ func TestPayOrderStatusMarkPaidError(t *testing.T) {
 	order := model.Order{OrderNo: "O204", UserID: "", Status: model.OrderStatusPending}
 	db.Create(&order)
 	makeReadOnly(t, db)
-	payer := &mockPayer{query: func(ctx context.Context, o string) (string, string, error) {
-		return "TRADE_SUCCESS", "trade-x", nil
+	payer := &mockPayer{query: func(ctx context.Context, o string) (string, string, string, error) {
+		return "TRADE_SUCCESS", "trade-x", "0.00", nil
 	}}
 	c, w := payStatusCtx(t, order.ID)
 	payOrderStatus(db, payer)(c)

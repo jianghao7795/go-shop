@@ -24,3 +24,6 @@ logs/
 .env
 .env.local
 .env.*.local
+
+# 支付宝本地配置（含商户密钥，不提交）
+/config/alipay*
