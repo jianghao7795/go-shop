@@ -3,12 +3,14 @@ package api
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
 	"shop/internal/model"
-	"strings"
-	"time"
 )
 
 func listSupport(db *gorm.DB, staff bool) gin.HandlerFunc {
@@ -20,6 +22,17 @@ func listSupport(db *gorm.DB, staff bool) gin.HandlerFunc {
 		q := db.Model(&model.SupportTicket{})
 		if !staff {
 			q = q.Where("user_id = ?", currentUser(c))
+		} else {
+			switch c.Query("mode") {
+			case "", "queue":
+				q = q.Where("mode IN ?", []string{model.SupportModeWaiting, model.SupportModeHuman})
+			case model.SupportModeBot, model.SupportModeWaiting, model.SupportModeHuman:
+				q = q.Where("mode = ?", c.Query("mode"))
+			case "all":
+			default:
+				c.JSON(400, gin.H{"message": "无效的客服接待方式"})
+				return
+			}
 		}
 		if status := c.Query("status"); status == "open" || status == "closed" {
 			q = q.Where("status = ?", status)
@@ -52,16 +65,30 @@ func createSupport(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		req.Subject, req.Content = strings.TrimSpace(req.Subject), strings.TrimSpace(req.Content)
+		if req.Subject == "" {
+			title := []rune(strings.Join(strings.Fields(req.Content), " "))
+			if len(title) > 40 {
+				req.Subject = string(title[:40]) + "…"
+			} else {
+				req.Subject = string(title)
+			}
+		}
 		if req.Subject == "" || len([]rune(req.Subject)) > 100 || req.Content == "" || len([]rune(req.Content)) > 2000 {
 			c.JSON(400, gin.H{"message": "标题需为 1-100 字，内容需为 1-2000 字"})
 			return
 		}
-		ticket := model.SupportTicket{UserID: currentUser(c), Subject: req.Subject, Status: "open"}
+		ticket := model.SupportTicket{UserID: currentUser(c), Subject: req.Subject, Status: "open", Mode: model.SupportModeBot}
 		err := db.Transaction(func(tx *gorm.DB) error {
 			if err := tx.Create(&ticket).Error; err != nil {
 				return err
 			}
-			return tx.Create(&model.SupportMessage{TicketID: ticket.ID, Content: req.Content}).Error
+			if err := tx.Create(&model.SupportMessage{TicketID: ticket.ID, Content: req.Content}).Error; err != nil {
+				return err
+			}
+			if err := appendSupportAutoReply(tx, &ticket, req.Content); err != nil {
+				return err
+			}
+			return tx.Model(&ticket).Updates(map[string]any{"mode": ticket.Mode, "human_requested_at": ticket.HumanRequestedAt}).Error
 		})
 		if err != nil {
 			c.JSON(500, gin.H{"message": "提交失败，请稍后重试"})
@@ -127,22 +154,36 @@ func replySupport(db *gorm.DB, hub *notificationHub, staff bool) gin.HandlerFunc
 			if ticket.Status != "open" {
 				return fmt.Errorf("咨询已结束，请重新发起咨询")
 			}
+			if staff && ticket.Mode == model.SupportModeBot {
+				return fmt.Errorf("用户尚未请求人工客服，当前咨询由自动客服接待")
+			}
 			if req.Content != "" {
 				var count int64
 				if err := tx.Model(&model.SupportMessage{}).Where("ticket_id = ?", id).Count(&count).Error; err != nil {
 					return err
 				}
-				if count >= 200 {
+				needed := int64(1)
+				if !staff && ticket.Mode == model.SupportModeBot && !req.Close {
+					needed++
+				}
+				if count+needed > 200 {
 					return fmt.Errorf("本次咨询消息已达上限，请结束后重新发起")
 				}
 				if err := tx.Create(&model.SupportMessage{TicketID: id, Staff: staff, Content: req.Content}).Error; err != nil {
 					return err
 				}
+				if staff {
+					ticket.Mode = model.SupportModeHuman
+				} else if !req.Close {
+					if err := appendSupportAutoReply(tx, &ticket, req.Content); err != nil {
+						return err
+					}
+				}
 			}
 			if req.Close {
 				ticket.Status = "closed"
 			}
-			return tx.Model(&ticket).Updates(map[string]any{"status": ticket.Status, "updated_at": time.Now()}).Error
+			return tx.Model(&ticket).Updates(map[string]any{"status": ticket.Status, "mode": ticket.Mode, "human_requested_at": ticket.HumanRequestedAt, "updated_at": time.Now()}).Error
 		})
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(404, gin.H{"message": "咨询不存在"})

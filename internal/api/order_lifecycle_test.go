@@ -244,6 +244,7 @@ func TestSupportConversationAndNotification(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &ticket); err != nil {
 		t.Fatal(err)
 	}
+	requireStatus(t, lifecycleRequest(t, replySupport(db, hub, false), ticket.ID, `{"content":"联系人工"}`), 200)
 	requireStatus(t, lifecycleRequest(t, replySupport(db, hub, true), ticket.ID, `{"content":"今日安排发货"}`), 200)
 	w = lifecycleRequest(t, supportTicket(db, false), ticket.ID, `{}`)
 	requireStatus(t, w, 200)
