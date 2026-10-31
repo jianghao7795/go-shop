@@ -49,9 +49,7 @@ function addToCart(): boolean {
   if (quantity.value > currentStock.value || currentStock.value <= 0) { showToast("当前规格库存不足"); return false; }
   const sku = product.value.skus?.find((s) => s.id === selectedSkuId.value);
   const price = sku ? sku.price : product.value.price;
-  for (let i = 0; i < quantity.value; i += 1) add(product.value, selectedSkuId.value, sku?.specs || "", price);
-  showToast("已加入购物车");
-  return true;
+  return add(product.value, selectedSkuId.value, sku?.specs || "", price, quantity.value);
 }
 
 function buyNow() {
@@ -114,7 +112,7 @@ onMounted(() => {
         </van-cell-group>
         <van-cell-group inset class="detail-quantity">
           <van-cell title="库存" :value="product.skus?.length && !selectedSku ? '请选择规格' : currentStock + ' 件'" />
-          <van-cell title="购买数量"><template #value><van-stepper v-model="quantity" min="1" :max="Math.max(1, currentStock)" :disabled="currentStock <= 0" /></template></van-cell>
+          <van-cell title="购买数量"><template #value><van-stepper v-model="quantity" integer min="1" :max="Math.max(1, currentStock)" :disabled="currentStock <= 0" /></template></van-cell>
         </van-cell-group>
       </section>
       <section class="detail-reviews">

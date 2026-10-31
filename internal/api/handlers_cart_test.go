@@ -36,7 +36,7 @@ func TestCartSync(t *testing.T) {
 	p := model.Product{Name: "A", Price: 1000}
 	db.Create(&p)
 
-	c, w := cartCtx(t, "PUT", "/api/cart", fmt.Sprintf(`[{"productId":%d,"quantity":2}]`, p.ID))
+	c, w := cartCtx(t, "PUT", "/api/cart", fmt.Sprintf(`{"version":0,"items":[{"productId":%d,"quantity":2}]}`, p.ID))
 	putCart(db)(c)
 	if w.Code != http.StatusOK {
 		t.Fatalf("put status = %d, want 200", w.Code)
@@ -47,10 +47,11 @@ func TestCartSync(t *testing.T) {
 	if w2.Code != http.StatusOK {
 		t.Fatalf("get status = %d, want 200", w2.Code)
 	}
-	var views []cartItemView
-	if err := json.Unmarshal(w2.Body.Bytes(), &views); err != nil {
+	var result cartView
+	if err := json.Unmarshal(w2.Body.Bytes(), &result); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
+	views := result.Items
 	if len(views) != 1 || views[0].ProductID != p.ID || views[0].Quantity != 2 || views[0].Name != "A" {
 		t.Fatalf("views = %+v", views)
 	}
@@ -64,16 +65,17 @@ func TestCartSyncOverwrite(t *testing.T) {
 	db.Create(&p2)
 
 	// 第一次放 p1
-	c, _ := cartCtx(t, "PUT", "/api/cart", fmt.Sprintf(`[{"productId":%d,"quantity":2}]`, p1.ID))
+	c, _ := cartCtx(t, "PUT", "/api/cart", fmt.Sprintf(`{"version":0,"items":[{"productId":%d,"quantity":2}]}`, p1.ID))
 	putCart(db)(c)
 	// 第二次放 p2（全量覆盖）
-	c2, _ := cartCtx(t, "PUT", "/api/cart", fmt.Sprintf(`[{"productId":%d,"quantity":1}]`, p2.ID))
+	c2, _ := cartCtx(t, "PUT", "/api/cart", fmt.Sprintf(`{"version":1,"items":[{"productId":%d,"quantity":1}]}`, p2.ID))
 	putCart(db)(c2)
 
 	c3, w3 := cartCtx(t, "GET", "/api/cart", "")
 	getCart(db)(c3)
-	var views []cartItemView
-	json.Unmarshal(w3.Body.Bytes(), &views)
+	var result cartView
+	json.Unmarshal(w3.Body.Bytes(), &result)
+	views := result.Items
 	if len(views) != 1 || views[0].ProductID != p2.ID {
 		t.Fatalf("views = %+v, want only p2", views)
 	}

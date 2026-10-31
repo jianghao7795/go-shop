@@ -7,7 +7,7 @@ const http = axios.create({
 
 http.interceptors.request.use((config) => {
   const token = localStorage.getItem("shop_token");
-  if (token) {
+  if (token && !config.headers.has("Authorization")) {
     config.headers.set("Authorization", "Bearer " + token);
   }
   return config;

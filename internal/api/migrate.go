@@ -3,8 +3,71 @@ package api
 import (
 	"time"
 
+	"shop/internal/model"
+
 	"gorm.io/gorm"
 )
+
+// MigrateCart upgrades only cart persistence and checkout receipts. It can be
+// run independently of the application without seeding or changing orders.
+func MigrateCart(db *gorm.DB) error {
+	if err := migrateCartLines(db); err != nil {
+		return err
+	}
+	return db.AutoMigrate(&model.CartItem{}, &model.CartState{}, &model.CheckoutRequest{})
+}
+
+// Run before adding the cart unique index. Duplicate legacy rows retain the
+// greatest quantity rather than multiplying a customer's intended purchase.
+func migrateCartLines(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&model.CartItem{}) || db.Migrator().HasIndex(&model.CartItem{}, "idx_cart_line") {
+		return nil
+	}
+	return db.Transaction(func(tx *gorm.DB) error {
+		if tx.Migrator().HasColumn(&model.CartItem{}, "sku_id") {
+			if err := tx.Model(&model.CartItem{}).Where("sku_id IS NULL").UpdateColumn("sku_id", 0).Error; err != nil {
+				return err
+			}
+		}
+		var rows []model.CartItem
+		if err := tx.Order("id ASC").Find(&rows).Error; err != nil {
+			return err
+		}
+		type key struct {
+			user         string
+			product, sku int
+		}
+		seen := map[key]model.CartItem{}
+		for _, row := range rows {
+			if row.Quantity <= 0 || row.ProductID <= 0 || row.SkuID < 0 {
+				if err := tx.Delete(&row).Error; err != nil {
+					return err
+				}
+				continue
+			}
+			k := key{row.UserID, row.ProductID, row.SkuID}
+			if first, ok := seen[k]; ok {
+				first.Quantity = min(max(first.Quantity, row.Quantity), maxCartQuantity)
+				if err := tx.Model(&first).Update("quantity", first.Quantity).Error; err != nil {
+					return err
+				}
+				if err := tx.Delete(&row).Error; err != nil {
+					return err
+				}
+				seen[k] = first
+			} else {
+				if row.Quantity > maxCartQuantity {
+					row.Quantity = maxCartQuantity
+					if err := tx.Model(&row).Update("quantity", row.Quantity).Error; err != nil {
+						return err
+					}
+				}
+				seen[k] = row
+			}
+		}
+		return nil
+	})
+}
 
 // migrationRecord 记录已执行的一次性数据迁移，用于幂等。
 type migrationRecord struct {

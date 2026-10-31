@@ -3,11 +3,13 @@ import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { showConfirmDialog, showToast } from "vant";
 import http from "../lib/http";
+import { useShopCart } from "../stores/shop";
 
 interface Address { id: number; name: string; phone: string; region: string; detail: string; tag: string; isDefault: boolean; }
 
 const router = useRouter();
 const route = useRoute();
+const shopCart = useShopCart();
 const selecting = route.query.select === "1";
 const addresses = ref<Address[]>([]);
 const loading = ref(false);
@@ -33,7 +35,8 @@ function edit(addr: Address) {
 
 function onCardClick(addr: Address) {
   if (selecting) {
-    localStorage.setItem("shop_checkout_address_id", String(addr.id));
+    if (shopCart.locked) return;
+    localStorage.setItem(shopCart.addressStorageKey, String(addr.id));
     router.back();
     return;
   }

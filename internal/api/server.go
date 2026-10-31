@@ -27,7 +27,10 @@ func Start() {
 	} else if migrateErr := migratePricesToCents(db); migrateErr != nil {
 		logx.L().Errorf("data migration failed: %v", migrateErr)
 		databaseReady = false
-	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}, &model.Coupon{}, &model.Role{}, &model.UserRole{}, &model.Permission{}, &model.RolePermission{}, &model.Review{}, &model.UserCoupon{}, &model.CartItem{}, &model.ProductSku{}, &model.SupportTicket{}, &model.SupportMessage{}); migrateErr != nil {
+	} else if migrateErr := migrateCartLines(db); migrateErr != nil {
+		logx.L().Errorf("cart migration failed: %v", migrateErr)
+		databaseReady = false
+	} else if migrateErr := db.AutoMigrate(&model.Product{}, &model.User{}, &model.Address{}, &model.Order{}, &model.Notification{}, &model.Category{}, &model.Coupon{}, &model.Role{}, &model.UserRole{}, &model.Permission{}, &model.RolePermission{}, &model.Review{}, &model.UserCoupon{}, &model.CartItem{}, &model.CartState{}, &model.CheckoutRequest{}, &model.ProductSku{}, &model.SupportTicket{}, &model.SupportMessage{}); migrateErr != nil {
 		logx.L().Errorf("mysql migration failed: %v", migrateErr)
 		databaseReady = false
 	} else {
@@ -138,6 +141,7 @@ func Start() {
 	router.POST("/api/login", rateLimitMiddleware(loginLimiter), jwtMiddleware.LoginHandler)
 	router.POST("/api/register", rateLimitMiddleware(registerLimiter), registerHandler(db))
 	router.POST("/api/pay/alipay/notify", handleAlipayNotify(db, payer))
+	router.POST("/api/cart/preview", previewCart(db))
 
 	protected := router.Group("/api")
 	protected.Use(jwtMiddleware.MiddlewareFunc())
@@ -167,6 +171,7 @@ func Start() {
 	protected.POST("/coupons/:id/claim", claimCoupon(db))
 	protected.GET("/cart", getCart(db))
 	protected.PUT("/cart", putCart(db))
+	protected.POST("/cart/checkout", checkoutCart(db))
 	protected.GET("/notifications", listNotifications(db))
 	protected.GET("/notifications/unread", unreadCount(db))
 	protected.PUT("/notifications/read-all", markAllNotificationsRead(db))

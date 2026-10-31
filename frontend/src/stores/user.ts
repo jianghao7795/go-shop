@@ -30,7 +30,10 @@ export const useUserStore = defineStore("user", () => {
   }
 
   function applyProfile(p: any) {
-    if (p.username) username.value = p.username;
+    if (p.username) {
+      localStorage.setItem(USER_KEY, p.username);
+      username.value = p.username;
+    }
     nickname.value = p.nickname || "";
     avatar.value = p.avatar || "";
     mobile.value = p.mobile || "";
@@ -39,10 +42,10 @@ export const useUserStore = defineStore("user", () => {
   }
 
   function setAuth(newToken: string, name: string) {
-    token.value = newToken;
-    username.value = name;
     localStorage.setItem(TOKEN_KEY, newToken);
     localStorage.setItem(USER_KEY, name);
+    username.value = name;
+    token.value = newToken;
   }
 
   function logout() {
@@ -59,12 +62,14 @@ export const useUserStore = defineStore("user", () => {
 
   async function validate() {
     if (!token.value) return;
+    const validatingToken = token.value;
     try {
       const res = await http.get("/api/me");
+      if (token.value !== validatingToken) return;
       applyProfile(res.data);
     } catch (err) {
       // HTTP 错误（含 401）时登出；网络不可用时不强制登出，保留本地登录态
-      if (isAxiosError(err) && err.response) logout();
+      if (token.value === validatingToken && isAxiosError(err) && err.response) logout();
     }
   }
 

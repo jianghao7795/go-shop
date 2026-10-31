@@ -4,13 +4,16 @@ import { useRoute } from "vue-router";
 import ShopTabbar from "./components/ShopTabbar.vue";
 import { useUserStore } from "./stores/user";
 import { useNotificationStore } from "./stores/notification";
+import { useShopCart } from "./stores/shop";
 
 const route = useRoute();
 const userStore = useUserStore();
 const notificationStore = useNotificationStore();
+const shopCart = useShopCart();
 
-onMounted(() => {
-  userStore.validate();
+onMounted(async () => {
+  await userStore.validate();
+  if (userStore.isLoggedIn) void shopCart.refresh();
   if (userStore.isLoggedIn) notificationStore.connect();
 });
 
