@@ -5,14 +5,23 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
     "build:dev": "vite build --minify false --mode development",
-    "build": "vite build --mode production",
+    "build": "npm run typecheck && vite build --mode production",
     "preview": "vite preview"
   },
   "dependencies": {
     "@vant/area-data": "^2.2.0",
     "@wailsio/runtime": "3.0.0-beta.27",
+    "@wangeditor/basic-modules": "^1.1.7",
+    "@wangeditor/code-highlight": "^1.0.3",
+    "@wangeditor/core": "^1.1.19",
     "@wangeditor/editor": "^5.1.23",
+    "@wangeditor/list-module": "^1.0.5",
+    "@wangeditor/table-module": "^1.1.4",
+    "@wangeditor/upload-image-module": "^1.0.2",
+    "@wangeditor/video-module": "^1.1.4",
     "axios": "^1.20.0",
     "pinia": "^3.0.4",
     "vant": "^4.10.2",
@@ -21,7 +30,12 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.9",
-    "typescript": "^4.9.3",
-    "vite": "^8.3.2"
+    "happy-dom": "^21.0.3",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.2",
+    "vue-tsc": "^3.3.13"
+  },
+  "allowScripts": {
+    "es5-ext": false
   }
 }

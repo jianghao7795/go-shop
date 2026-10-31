@@ -4,7 +4,7 @@ import vue from "@vitejs/plugin-vue";
 
 /** Fallback port used when WAILS_VITE_PORT is missing or invalid. */
 const DEFAULT_PORT = 9245;
-/** Loopback only: the Wails WebView loads the dev server from the same machine. */
+/** Allow the Wails WebView and local network devices to reach the dev server. */
 const DEFAULT_HOST = "0.0.0.0";
 
 /**
@@ -45,22 +45,28 @@ function resolveDevPort(): number {
 // https://vitejs.dev/config/
 export default defineConfig({
   server: {
-    // Override with WAILS_VITE_HOST=0.0.0.0 for containerized / remote-dev setups.
+    // Set WAILS_VITE_HOST=127.0.0.1 to restrict development access to this machine.
     host: env.WAILS_VITE_HOST?.trim() || DEFAULT_HOST,
     port: resolveDevPort(),
     strictPort: true,
   },
   plugins: [vue(), wails("./bindings")],
   build: {
-    rollupOptions: {
+    rolldownOptions: {
       output: {
-        // 把 node_modules 里的依赖按库拆成独立 chunk，避免打进单个 index.js
-        manualChunks(id: string) {
-          if (!id.includes("node_modules")) return;
-          if (id.includes("vant")) return "vant";
-          if (id.includes("vue") || id.includes("pinia") || id.includes("vue-router")) return "vue-vendor";
-          if (id.includes("axios")) return "axios";
-          return "vendor";
+        // Keep the editor's optional features out of the storefront's shared bundle.
+        codeSplitting: {
+          groups: [
+            { name: "vue-vendor", test: /node_modules[\\/](?:@vue[\\/]|vue[\\/]|pinia[\\/]|vue-router[\\/])/, priority: 30 },
+            { name: "vant", test: /node_modules[\\/]vant[\\/]/, priority: 20 },
+            { name: "axios", test: /node_modules[\\/]axios[\\/]/, priority: 20 },
+            {
+              name: "editor",
+              test: /node_modules[\\/]@wangeditor[\\/]/,
+              maxSize: 300_000,
+              priority: 10,
+            },
+          ],
         },
       },
     },

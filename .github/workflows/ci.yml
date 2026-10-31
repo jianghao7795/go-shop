@@ -34,7 +34,7 @@ jobs:
       # 先构建前端：main.go 通过 go:embed 嵌入 frontend/dist，后端编译依赖它
       - name: Build frontend
         working-directory: frontend
-        run: npm ci && npm run build
+        run: npm ci && npm test && npm run build
 
       - name: Vet
         run: go vet ./...

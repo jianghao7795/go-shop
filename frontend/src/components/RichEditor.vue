@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { showToast } from "vant";
-import { createEditor, createToolbar, type IDomEditor, type Toolbar } from "@wangeditor/editor";
+import type { IDomEditor, Toolbar } from "@wangeditor/core";
+import { createProductEditor, createProductToolbar } from "../lib/rich-editor";
 import "@wangeditor/editor/dist/css/style.css";
 import http from "../lib/http";
 import { avatarSrc, resolveDetailHtml, unresolveDetailHtml } from "../lib/avatar";
@@ -15,11 +16,7 @@ let editor: IDomEditor | null = null;
 let toolbar: Toolbar | null = null;
 
 onMounted(() => {
-  editor = createEditor({
-    selector: editorEl.value!,
-    html: resolveDetailHtml(props.modelValue),
-    mode: "default",
-    config: {
+  editor = createProductEditor(editorEl.value!, resolveDetailHtml(props.modelValue), {
       placeholder: "请输入图文详情",
       MENU_CONF: {
         uploadImage: {
@@ -39,13 +36,8 @@ onMounted(() => {
       onChange(ed) {
         emit("update:modelValue", unresolveDetailHtml(ed.getHtml()));
       },
-    },
   });
-  toolbar = createToolbar({
-    editor,
-    selector: toolbarEl.value!,
-    mode: "default",
-  });
+  toolbar = createProductToolbar(editor, toolbarEl.value!);
 });
 
 onBeforeUnmount(() => {
