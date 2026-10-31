@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Rate, showToast } from "vant";
 import http from "../lib/http";
@@ -10,6 +10,8 @@ interface Order { id: number; orderNo: string; status: string; items: OrderItem[
 const route = useRoute();
 const router = useRouter();
 const order = ref<Order | null>(null);
+// Reviews belong to products, so multiple SKUs of one product share one review.
+const reviewItems = computed(() => [...new Map((order.value?.items || []).map(item => [item.productId, item])).values()]);
 const loading = ref(false);
 const submitting = ref(false);
 const reviews = reactive<Record<number, { rating: number; content: string }>>({});
@@ -17,9 +19,9 @@ const reviews = reactive<Record<number, { rating: number; content: string }>>({}
 async function load() {
   loading.value = true;
   try {
-    const res = await http.get("/api/orders/" + route.params.id);
+    const res = await http.get<Order>("/api/orders/" + route.params.id);
     order.value = res.data;
-    for (const it of order.value.items) {
+    for (const it of reviewItems.value) {
       reviews[it.productId] = { rating: 5, content: "" };
     }
   } catch {
@@ -34,11 +36,11 @@ function setRating(productId: number, rating: number) {
 }
 
 async function submit() {
-  if (!order.value) return;
+  if (!order.value || submitting.value) return;
   submitting.value = true;
   try {
     const body = {
-      reviews: order.value.items.map((it) => ({
+      reviews: reviewItems.value.map((it) => ({
         productId: it.productId,
         rating: reviews[it.productId].rating,
         content: reviews[it.productId].content,
@@ -65,7 +67,7 @@ onMounted(load);
     <van-loading v-if="loading" class="loading" color="#ff4d67" />
     <van-empty v-else-if="!order" description="订单不存在" />
     <template v-else>
-      <van-cell-group v-for="it in order.items" :key="it.productId" inset class="review-card">
+      <van-cell-group v-for="it in reviewItems" :key="it.productId" inset class="review-card">
         <van-cell :title="it.name">
           <template #icon><div class="cart-thumb" :style="{ background: it.color }">{{ it.emoji }}</div></template>
         </van-cell>

@@ -24,10 +24,7 @@ func applyCouponDiscount(amount model.Price, coupon *model.Coupon) (payAmount, d
 	if amount < coupon.MinAmount {
 		return amount, 0
 	}
-	discount = coupon.Amount
-	if discount > amount {
-		discount = amount
-	}
+	discount = min(coupon.Amount, amount)
 	return amount - discount, discount
 }
 

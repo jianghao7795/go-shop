@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { showConfirmDialog, showToast } from "vant";
 import http from "../lib/http";
@@ -12,6 +12,9 @@ const router = useRouter();
 const active = ref(0);
 const orders = ref<Order[]>([]);
 const loading = ref(false);
+const loadingMore = ref(false);
+const loadError = ref("");
+let requestVersion = 0;
 const aftersaleOrder = ref<Order | null>(null);
 const page = ref(1);
 const total = ref(0);
@@ -30,29 +33,44 @@ const tabs = [
 ];
 
 async function loadOrders() {
+  const version = ++requestVersion;
   loading.value = true;
+  loadingMore.value = false;
+  loadError.value = "";
   try {
     const status = tabs[active.value].name;
     const res = await http.get("/api/orders", { params: { ...(status ? { status } : {}), page: 1, pageSize: 20 } });
+    if (version !== requestVersion) return;
     orders.value = res.data.items || [];
     total.value = res.data.total;
     page.value = 1;
   } catch {
+    if (version !== requestVersion) return;
     orders.value = [];
+    total.value = 0;
+    loadError.value = "订单加载失败，请稍后重试";
   } finally {
-    loading.value = false;
+    if (version === requestVersion) loading.value = false;
   }
 }
 
 async function loadMore() {
-  if (finished.value || loading.value) return;
+  if (finished.value || loading.value || loadingMore.value) return;
+  const version = requestVersion;
+  const nextPage = page.value + 1;
+  loadingMore.value = true;
   try {
     const status = tabs[active.value].name;
-    const res = await http.get("/api/orders", { params: { ...(status ? { status } : {}), page: page.value + 1, pageSize: 20 } });
+    const res = await http.get("/api/orders", { params: { ...(status ? { status } : {}), page: nextPage, pageSize: 20 } });
+    if (version !== requestVersion) return;
     orders.value.push(...(res.data.items || []));
     total.value = res.data.total;
-    page.value += 1;
-  } catch { /* 忽略 */ }
+    page.value = nextPage;
+  } catch {
+    if (version === requestVersion) showToast("加载失败，请重试");
+  } finally {
+    if (version === requestVersion) loadingMore.value = false;
+  }
 }
 
 async function changeStatus(order: Order, status: string, text: string) {
@@ -72,13 +90,13 @@ async function cancelOrder(order: Order) {
   await changeStatus(order, "cancelled", "取消订单");
 }
 
-watch(active, loadOrders);
-onMounted(() => {
+watch(() => route.query.status, () => {
   const status = String(route.query.status || "");
   const idx = tabs.findIndex(t => t.name === status);
-  if (idx >= 0) active.value = idx;
-  loadOrders();
-});
+  active.value = Math.max(0, idx);
+}, { immediate: true });
+watch(active, loadOrders, { immediate: true });
+onUnmounted(() => { requestVersion++; });
 </script>
 
 <template>
@@ -88,6 +106,7 @@ onMounted(() => {
       <van-tab v-for="tab in tabs" :key="tab.title" :title="tab.title" />
     </van-tabs>
     <div v-if="loading" class="loading"><van-loading color="#ff4d67" /></div>
+    <van-empty v-else-if="loadError" :description="loadError"><van-button type="primary" @click="loadOrders">重新加载</van-button></van-empty>
     <van-empty v-else-if="!orders.length" description="暂无相关订单" />
     <template v-else>
       <van-cell-group v-for="order in orders" :key="order.id" inset class="order-card">
@@ -107,7 +126,7 @@ onMounted(() => {
         </div>
       </van-cell-group>
       <div v-if="!finished" class="load-more">
-        <van-button size="small" plain @click="loadMore">加载更多</van-button>
+        <van-button size="small" plain :loading="loadingMore" @click="loadMore">加载更多</van-button>
       </div>
     </template>
     <AftersaleForm :order="aftersaleOrder" @close="aftersaleOrder = null" @submitted="loadOrders" />

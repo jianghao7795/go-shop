@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { showToast } from "vant";
 import { useShopCart } from "../stores/shop";
@@ -43,8 +43,10 @@ const loading = ref(false);
 const loadError = ref("");
 const products = ref<Product[]>([]);
 const featured = ref<Product[]>([]);
+let productRequest = 0;
 
 async function loadProducts() {
+  const request = ++productRequest;
   loading.value = true;
   loadError.value = "";
   try {
@@ -52,13 +54,15 @@ async function loadProducts() {
     if (activeCategory.value !== "all") params.set("category", activeCategory.value);
     const qs = params.toString();
     const res = await http.get("/api/products" + (qs ? "?" + qs : ""));
-    const data = res.data as Product[];
+    if (request !== productRequest) return;
+    const data = (res.data || []) as Product[];
     products.value = data;
     if (!data.length) loadError.value = "没有找到相关商品";
   } catch {
-    loadError.value = "商品服务暂不可用，请确认 Gin 和 MySQL 已启动";
+    if (request !== productRequest) return;
+    loadError.value = "商品加载失败，请稍后重试";
   } finally {
-    loading.value = false;
+    if (request === productRequest) loading.value = false;
   }
 }
 
@@ -67,7 +71,7 @@ async function loadFeatured() {
     const res = await http.get("/api/products", {
       params: { featured: "true" },
     });
-    featured.value = res.data as Product[];
+    featured.value = (res.data || []) as Product[];
   } catch {
     /* 优选好物加载失败时保持为空 */
   }
@@ -107,6 +111,7 @@ onMounted(() => {
   loadProducts();
   loadFeatured();
 });
+onUnmounted(() => { productRequest++; });
 </script>
 
 <template>
@@ -138,7 +143,7 @@ onMounted(() => {
         <span>销量精选</span>
       </div>
       <div class="featured-wrap">
-        <van-swipe ref="featuredSwipe" :autoplay="4000" loop lazy-render>
+        <van-swipe :autoplay="4000" loop lazy-render>
           <van-swipe-item v-for="p in featured" :key="p.id">
             <article class="featured-card" @click="$router.push(`/product/${p.id}`)">
               <div class="featured-thumb" :style="{ background: p.color }">
@@ -196,28 +201,6 @@ onMounted(() => {
   position: relative;
   width: 100%;
   padding: 10px 12px;
-}
-.featured-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 30px;
-  height: 30px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.3);
-  color: #fff;
-  font-size: 18px;
-  line-height: 30px;
-  text-align: center;
-  cursor: pointer;
-  z-index: 1;
-}
-.featured-arrow--left {
-  left: 14px;
-}
-.featured-arrow--right {
-  right: 14px;
 }
 .featured-card {
   overflow: hidden;
