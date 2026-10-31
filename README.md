@@ -1,67 +1,79 @@
-# Welcome to Your New Wails3 Project!
+﻿# 优选商城
 
-Congratulations on generating your Wails3 application! This README will guide you through the next steps to get your project up and running.
+优选商城是一个基于 Wails 3 的跨平台商城应用，同时提供可独立运行的 HTTP 服务端。项目包含用户端商城、管理后台、订单与支付、优惠券、评价、客服、通知推送、商品规格和购物车结算能力。
 
-## Getting Started
+## 文档导航
 
-On Ubuntu 22.04, install the native desktop build dependencies first:
+- [项目总览](docs/project-overview.md)：目录、模块边界、请求链路和启动流程。
+- [接口参考](docs/api-reference.md)：公开接口、登录接口、用户接口和管理接口。
+- [数据模型](docs/data-model.md)：MySQL 表、核心字段、关系和迁移策略。
+- [开发指南](docs/development.md)：环境准备、配置、开发运行和测试命令。
+- [部署与运维](docs/operations.md)：MySQL、Redis、支付宝、服务端部署、备份和排障。
+- [购物车一致性](docs/cart-consistency.md)：购物车版本控制、缓存隔离和幂等结算。
+- [订单、售后、物流与客服](docs/order-service-workflows.md)：订单生命周期和客服处理规则。
+- [支付宝配置](docs/alipay-config.md)：沙箱、生产配置和回调说明。
 
-```sh
-sudo apt-get install -y pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+## 快速开始
+
+项目需要 Go 1.26、Node.js 24、npm，以及可访问的 MySQL。Redis 是可选依赖；不可用时目录缓存、权限缓存和限流会降级到数据库或内存实现。
+
+```powershell
+# 安装前端依赖并构建
+cd frontend
+npm ci
+npm test
+npm run build
+cd ..
+
+# 运行后端和完整 Go 测试
+go test ./...
+
+# Wails 开发模式
+task dev
 ```
 
-The Linux build tasks use the `gtk3` build tag by default. When running Go directly, use `go run -tags gtk3 .`.
+服务端默认监听 `:8080`，前端默认请求 `http://127.0.0.1:8080`。MySQL、Redis、支付宝和 CORS 配置均可通过环境变量覆盖，具体见[开发指南](docs/development.md)。
 
-1. Navigate to your project directory in the terminal.
+## 构建方式
 
-2. To run your application in development mode, use the following command:
+```powershell
+# 桌面应用，按当前操作系统构建
+task build
 
-   ```
-   wails3 dev
-   ```
+# 仅构建 HTTP 服务端
+task build:server
 
-   This will start your application and enable hot-reloading for both frontend and backend changes.
+# 构建 Docker 服务端镜像
+task build:docker
 
-3. To build your application for production, use:
+# 启动已构建的服务端
+task run:server
+```
 
-   ```
-   wails3 build
-   ```
+`main.go` 会通过 `go:embed` 嵌入 `frontend/dist`，因此完整桌面构建或 Go 编译前必须先完成前端构建。生产服务端使用 `server,production` 构建标签，容器默认暴露 8080 端口。
 
-   This will create a production-ready executable in the `build` directory.
+## 当前验证状态
 
-## Exploring Wails3 Features
+仓库当前包含前端组件/状态测试、Go 单元测试、购物车 MySQL 集成测试和生产构建检查。推荐在提交前执行：
 
-Now that you have your project set up, it's time to explore the features that Wails3 offers:
+```powershell
+cd frontend
+npm test
+npm run build
+cd ..
+go test ./...
+```
 
-1. **Check out the examples**: The best way to learn is by example. Visit the `examples` directory in the `v3/examples` directory to see various sample applications.
+真实 MySQL 购物车测试需要显式设置 `SHOP_MYSQL_INTEGRATION=1`，测试会创建并删除独立临时数据库，不会使用业务库。
 
-2. **Run an example**: To run any of the examples, navigate to the example's directory and use:
+## 重要边界
 
-   ```
-   go run .
-   ```
+- 金额在后端以整数分保存，前端展示为元；订单提交时以后端商品、规格、库存和优惠券数据为准。
+- 支付未配置时，商城浏览、购物车和下单接口仍可使用，收银台会返回支付未配置；真实支付必须使用自己的支付宝沙箱或生产凭据验证。
+- Redis 不是数据源。Redis 不可用时，业务数据仍使用 MySQL，缓存与限流功能按实现降级。
+- 物流轨迹由商家录入，当前没有接入快递公司的自动轨迹服务。
+- 售后当前以整单退款为主，部分退款、换货和图片举证不在现有范围内。
 
-   Note: Some examples may be under development during the alpha phase.
+## 项目状态约定
 
-3. **Explore the documentation**: Visit the [Wails3 documentation](https://v3.wails.io/) for in-depth guides and API references.
-
-4. **Join the community**: Have questions or want to share your progress? Join the [Wails Discord](https://discord.gg/JDdSxwjhGf) or visit the [Wails discussions on GitHub](https://github.com/wailsapp/wails/discussions).
-
-## Project Structure
-
-Take a moment to familiarize yourself with your project structure:
-
-- `frontend/`: Contains your frontend code (HTML, CSS, JavaScript/TypeScript)
-- `main.go`: The entry point of your Go backend
-- `app.go`: Define your application structure and methods here
-- `wails.json`: Configuration file for your Wails project
-
-## Next Steps
-
-1. Modify the frontend in the `frontend/` directory to create your desired UI.
-2. Add backend functionality in `main.go`.
-3. Use `wails3 dev` to see your changes in real-time.
-4. When ready, build your application with `wails3 build`.
-
-Happy coding with Wails3! If you encounter any issues or have questions, don't hesitate to consult the documentation or reach out to the Wails community.
+工作区可能包含尚未提交的功能改动；文档描述以当前工作区代码为准。不要把 `config/alipay.local.json`、私钥、数据库密码或其他本地凭据提交到仓库。
